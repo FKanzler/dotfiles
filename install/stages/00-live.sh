@@ -12,6 +12,21 @@ REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 
 source "$REPO_ROOT/install/lib/common.sh"
 
+# Ensure package manager is available for lightweight helper installs.
+require_commands pacman
+
+if ! command -v gum >/dev/null 2>&1; then
+	run_step "Installing gum for interactive prompts" pacman -Sy --noconfirm --needed gum
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+	run_step "Installing jq for JSON processing" pacman -Sy --noconfirm --needed jq
+fi
+
+if ! command -v awk >/dev/null 2>&1; then
+	run_step "Installing gawk for text processing" pacman -Sy --noconfirm --needed gawk
+fi
+
 # Basic tooling requirements for the live stage.
 require_commands gum archinstall jq curl lsblk awk findmnt openssl lspci
 
