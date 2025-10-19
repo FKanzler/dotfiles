@@ -47,10 +47,12 @@ gum style --bold --border double --padding "1 2" --margin "1 0" "ARCH INSTALLER"
 # Wrapper that validates a stage before executing it.
 run_stage_script() {
 	local stage_script=$1
+	log_info "Entering stage $(basename "$stage_script")"
 	if [[ ! -f "$stage_script" ]]; then
 		abort "Missing stage script: $stage_script"
 	fi
 	bash "$stage_script" "$STATE_FILE"
+	log_info "Finished stage $(basename "$stage_script")"
 }
 
 # Stage 00 prepares disks, runs archinstall, and writes state.
