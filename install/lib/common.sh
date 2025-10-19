@@ -324,6 +324,7 @@ exists_previous_state() {
 	script_count=$(jq -r '.scripts | length' "$STATE_FILE")
 	local step_count
 	step_count=$(jq -r '.step' "$STATE_FILE")
+	echo "$step_count $stage_count $script_count" >&2
 	return $((stage_count > 0 || script_count > 0 || step_count > 0))
 }
 
