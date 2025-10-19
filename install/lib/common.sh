@@ -116,10 +116,14 @@ ensure_symlink() {
 
 # Ensure the state file exists with the expected schema.
 ensure_state_file() {
-	ensure_directory "$CACHE_DIR"
-
 	if [[ ! -f "$STATE_FILE" ]]; then
-		cat <<'JSON' >"$STATE_FILE"
+		reset_state_file
+	fi
+}
+
+reset_state_file() {
+	ensure_directory "$CACHE_DIR"
+	cat <<'JSON' >"$STATE_FILE"
 {
   "stages": [],
   "scripts": [],
@@ -127,7 +131,6 @@ ensure_state_file() {
   "values": {}
 }
 JSON
-	fi
 }
 
 # Run a jq mutation against the state file and replace it atomically.
@@ -286,6 +289,17 @@ run_script() {
 	log_info "Executing script $(basename "$script")"
 	ARCH_BOOTSTRAP_STATE_FILE="$STATE_FILE" bash "$script"
 	complete_script "$(basename "$script")"
+}
+
+exists_previous_state() {
+	ensure_state_file
+	local stage_count
+	stage_count=$(jq -r '.stages | length' "$STATE_FILE")
+	local script_count
+	script_count=$(jq -r '.scripts | length' "$STATE_FILE")
+	local step_count
+	step_count=$(jq -r '.step' "$STATE_FILE")
+	return $((stage_count > 0 || script_count > 0 || step_count > 0))
 }
 
 # Mark a step as complete in the state file.
