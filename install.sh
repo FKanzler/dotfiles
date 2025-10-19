@@ -20,10 +20,6 @@ fi
 # Ensure the base tools exist before any heavy lifting.
 require_commands pacman gum:gum tar:tar
 
-# Simple banner to make it obvious the installer started.
-clear
-gum style --bold --border double --padding "1 2" --margin "1 0" "ARCH INSTALLER"
-
 # Stage 00 prepares disks, runs archinstall, and writes state.
 run_stage "$STAGES_DIR/00-live.sh"
 

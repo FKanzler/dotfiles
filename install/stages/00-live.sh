@@ -64,8 +64,7 @@ collect_input() {
 		value=$(gum input --prompt "$prompt: " --placeholder "$placeholder")
 		local status=$?
 		case $status in
-		0)
-			;;
+		0) ;;
 		130)
 			abort "Installer cancelled by user."
 			;;
@@ -83,8 +82,7 @@ collect_input() {
 			confirm_value=$(gum input --prompt "Confirm $placeholder: " --placeholder "$placeholder")
 			status=$?
 			case $status in
-			0)
-				;;
+			0) ;;
 			130)
 				abort "Installer cancelled by user."
 				;;
@@ -184,6 +182,9 @@ generate_recovery_key() {
 }
 
 collect_values() {
+	clear
+	gum style --bold --border double --padding "1 2" --margin "1 0" "ARCH INSTALLER"
+
 	local hostname
 	hostname=$(collect_input "Hostname" "Hostname" 0 '^[A-Za-z_][A-Za-z0-9_-]*$')
 	set_state_value "hostname" "$hostname"

@@ -347,10 +347,10 @@ run_step() {
 	local step_number=$STEP_INDEX
 
 	if ((step_number <= COMPLETED_STEP)); then
-		log_info "Step $step_number ($description) already completed; skipping"
+		log_info "$description already completed; skipping"
 		return
 	fi
-	log_info "Step $step_number ($description)"
+	log_info "$description"
 	"$@"
 	complete_step "$step_number"
 }
