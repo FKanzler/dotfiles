@@ -162,8 +162,19 @@ select_disk() {
 	done <<<"$disks"
 
 	local selected
-	selected=$(echo "$options" | gum choose --header "Select installation disk" || abort "Installer cancelled by user.")
-	echo "$selected" | awk '{print $1}'
+	selected=$(echo "$options" | gum choose --header "Select installation disk")
+	local status=$?
+	case $status in
+	0)
+		echo "$selected" | awk '{print $1}'
+		;;
+	130)
+		abort "Installer cancelled by user."
+		;;
+	*)
+		abort "gum choose failed with exit code $status"
+		;;
+	esac
 }
 
 generate_recovery_key() {
