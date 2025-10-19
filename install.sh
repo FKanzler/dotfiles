@@ -5,9 +5,9 @@ set -euo pipefail
 # Locate the repository root and source shared helpers.
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$SCRIPT_DIR
+
 source "$REPO_ROOT/install/lib/common.sh"
-STATE_FILE=${STATE_FILE}
-export ARCH_BOOTSTRAP_STATE_FILE="$STATE_FILE"
+
 ensure_directory "$CACHE_DIR"
 
 # Paths reused across the staged installer.
@@ -56,12 +56,12 @@ arch_chroot() {
 }
 
 # Stage 10 runs privileged tasks, stage 20 runs as the target user.
-arch_chroot "$TARGET_ROOT" "ARCH_BOOTSTRAP_STATE_FILE=/root/arch-bootstrap/install/state.json bash /root/arch-bootstrap/install/stages/10-chroot-root.sh /root/arch-bootstrap/install/state.json"
-arch_chroot "$TARGET_ROOT" "runuser -u $USERNAME -- /bin/bash -lc 'ARCH_BOOTSTRAP_STATE_FILE=/root/arch-bootstrap/install/state.json bash /root/arch-bootstrap/install/stages/20-chroot-user.sh /root/arch-bootstrap/install/state.json'"
+arch_chroot "$TARGET_ROOT" "bash /root/arch-bootstrap/install/stages/10-chroot-root.sh"
+arch_chroot "$TARGET_ROOT" "runuser -u $USERNAME -- /bin/bash -lc 'bash /root/arch-bootstrap/install/stages/20-chroot-user.sh'"
 
 # Optional polish can happen in a final stage.
 if [[ -f "$STAGES_DIR/30-finalize.sh" ]]; then
-	arch_chroot "$TARGET_ROOT" "ARCH_BOOTSTRAP_STATE_FILE=/root/arch-bootstrap/install/state.json bash /root/arch-bootstrap/install/stages/30-finalize.sh /root/arch-bootstrap/install/state.json"
+	arch_chroot "$TARGET_ROOT" "bash /root/arch-bootstrap/install/stages/30-finalize.sh"
 fi
 
 log_info "Installation stages completed. You can reboot into the new system when ready."

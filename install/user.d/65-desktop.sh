@@ -4,8 +4,6 @@ set -euo pipefail
 
 # Apply desktop tweaks and ensure user timers are enabled idempotently.
 
-STATE_FILE=${1:? "State file path required"}
-
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 

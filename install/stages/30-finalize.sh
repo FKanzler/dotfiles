@@ -4,8 +4,6 @@ set -euo pipefail
 
 # Stage 30 performs final clean-up inside the chroot.
 
-STATE_FILE=${1:? "State file path required as first argument"}
-
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 

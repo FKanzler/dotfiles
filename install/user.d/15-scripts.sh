@@ -4,8 +4,6 @@ set -euo pipefail
 
 # Link repository scripts into ~/.local/bin so they are on PATH.
 
-STATE_FILE=${1:? "State file path required"}
-
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 

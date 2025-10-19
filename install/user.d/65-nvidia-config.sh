@@ -4,8 +4,6 @@ set -euo pipefail
 
 # Add NVIDIA-specific environment overrides to Hyprland when required.
 
-STATE_FILE=${1:? "State file path required"}
-
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 

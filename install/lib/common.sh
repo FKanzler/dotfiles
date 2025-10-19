@@ -243,7 +243,7 @@ run_stage() {
 		abort "Missing stage script: $stage_script"
 	fi
 	log_info "Executing stage $(basename "$stage_script")"
-	ARCH_BOOTSTRAP_STATE_FILE="$STATE_FILE" bash "$stage_script" "$STATE_FILE"
+	bash "$stage_script"
 	complete_stage "$(basename "$stage_script")"
 }
 
@@ -284,7 +284,7 @@ run_script() {
 		abort "Missing script: $script"
 	fi
 	log_info "Executing script $(basename "$script")"
-	ARCH_BOOTSTRAP_STATE_FILE="$STATE_FILE" bash "$script" "$STATE_FILE"
+	ARCH_BOOTSTRAP_STATE_FILE="$STATE_FILE" bash "$script"
 	complete_script "$(basename "$script")"
 }
 

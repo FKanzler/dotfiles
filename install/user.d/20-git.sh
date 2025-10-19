@@ -4,8 +4,6 @@ set -euo pipefail
 
 # Establish opinionated global git defaults and author identity.
 
-STATE_FILE=${1:? "State file path required"}
-
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 
