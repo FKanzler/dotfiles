@@ -236,7 +236,7 @@ cat <<-JSON >"$REPO_ROOT/user_configuration.json"
 		                            { "mountpoint": "/", "name": "@" },
 		                            { "mountpoint": "/home", "name": "@home" },
 		                            { "mountpoint": "/var/log", "name": "@log" },
-		                            { "mountpoint": "/var/cache/pacman/pkg", "name": "@pkg" },
+		                            { "mountpoint": "/var/cache/pacman/pkg", "name": "@pkg" }
 		                        ],
 		                        "dev_path": null,
 		                        "flags": [],
