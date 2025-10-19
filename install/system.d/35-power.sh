@@ -13,13 +13,19 @@ source "$REPO_ROOT/install/lib/common.sh"
 
 LOGIND_CONF=/etc/systemd/logind.conf
 
-if [[ -f "$LOGIND_CONF" ]]; then
-	# Update (or append) the HandlePowerKey entry so physical presses fall through to the desktop menu.
-	if grep -q '^HandlePowerKey' "$LOGIND_CONF"; then
-		sed -i 's/^HandlePowerKey=.*/HandlePowerKey=ignore/' "$LOGIND_CONF"
+configure_power_button_behavior() {
+	if [[ -f "$LOGIND_CONF" ]]; then
+		# Update (or append) the HandlePowerKey entry so physical presses fall through to the desktop menu.
+		if grep -q '^HandlePowerKey' "$LOGIND_CONF"; then
+			sed -i 's/^HandlePowerKey=.*/HandlePowerKey=ignore/' "$LOGIND_CONF"
+		else
+			echo 'HandlePowerKey=ignore' >>"$LOGIND_CONF"
+		fi
+		# Restart logind so the new behaviour is effective immediately without a reboot.
+		systemctl restart systemd-logind.service >/dev/null 2>&1 || true
 	else
-		echo 'HandlePowerKey=ignore' >>"$LOGIND_CONF"
+		log_warn "$LOGIND_CONF not found; skipping power button configuration"
 	fi
-	# Restart logind so the new behaviour is effective immediately without a reboot.
-	systemctl restart systemd-logind.service >/dev/null 2>&1 || true
-fi
+}
+
+run_step "Configuring power button behaviour" configure_power_button_behavior

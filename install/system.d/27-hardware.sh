@@ -297,16 +297,16 @@ KERNEL_CMDLINE[default]+="intel_iommu=on iommu=pt pcie_ports=compat"
 EOF
 }
 
-install_intel_media_support
-install_nvidia_support
-install_mac_broadcom_support
-install_mac_spi_support
-configure_mac_t2_support
+run_step "Installing Intel media support" install_intel_media_support
+run_step "Installing NVIDIA support" install_nvidia_support
+run_step "Installing Broadcom Wi-Fi support" install_mac_broadcom_support
+run_step "Configuring Mac SPI keyboard support" install_mac_spi_support
+run_step "Configuring Apple T2 support" configure_mac_t2_support
 # Run the generic hardware tweaks last so they benefit from any packages installed above.
-configure_bluetooth
-configure_network_stack
-configure_printer_support
-set_wireless_regdom
-disable_usb_autosuspend
-ensure_fn_keys_default
-fix_powerprofilesctl_shebang
+run_step "Configuring Bluetooth support" configure_bluetooth
+run_step "Configuring network stack" configure_network_stack
+run_step "Configuring printer support" configure_printer_support
+run_step "Setting wireless regulatory domain" set_wireless_regdom
+run_step "Disabling USB autosuspend" disable_usb_autosuspend
+run_step "Ensuring function keys default behaviour" ensure_fn_keys_default
+run_step "Fixing powerprofilesctl shebang" fix_powerprofilesctl_shebang

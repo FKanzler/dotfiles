@@ -96,9 +96,9 @@ EOF
 
 # Apply each hardening step in sequence. Every helper is written to be
 # idempotent, so re-running the installer simply refreshes the settings.
-configure_ufw
-configure_sudo
-configure_lockout
-configure_sysctl
-configure_timezone_sudoers
-configure_gpg
+run_step "Configuring UFW firewall" configure_ufw
+run_step "Configuring sudo defaults" configure_sudo
+run_step "Configuring PAM lockout policy" configure_lockout
+run_step "Configuring sysctl defaults" configure_sysctl
+run_step "Allowing timezone updates via sudo" configure_timezone_sudoers
+run_step "Configuring system GnuPG defaults" configure_gpg

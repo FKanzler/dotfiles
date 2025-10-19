@@ -11,18 +11,17 @@ REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 
 source "$REPO_ROOT/install/lib/common.sh"
 
-USERNAME=$(json_get "$STATE_FILE" '.username')
+configure_lightdm_greeter() {
+	ensure_directory /etc/lightdm/lightdm.conf.d
 
-ensure_directory /etc/lightdm/lightdm.conf.d
-
-# Use the webkit greeter when available; fall back to the GTK greeter otherwise.
-if pacman -Q lightdm-webkit-theme-litarvan >/dev/null 2>&1; then
-	cat <<'EOF' >/etc/lightdm/lightdm.conf.d/20-greeter.conf
+	# Use the webkit greeter when available; fall back to the GTK greeter otherwise.
+	if pacman -Q lightdm-webkit-theme-litarvan >/dev/null 2>&1; then
+		cat <<'EOF' >/etc/lightdm/lightdm.conf.d/20-greeter.conf
 [Seat:*]
 greeter-session=lightdm-webkit2-greeter
 user-session=uwsm
 EOF
-	cat <<'EOF' >/etc/lightdm/lightdm-webkit2-greeter.conf
+		cat <<'EOF' >/etc/lightdm/lightdm-webkit2-greeter.conf
 [greeter]
 webkit-theme=litarvan
 debug-mode=false
@@ -36,10 +35,13 @@ user-image=default
 [greeter-plugin]
 disable-mesa-kms=false
 EOF
-else
-	cat <<'EOF' >/etc/lightdm/lightdm.conf.d/20-greeter.conf
+	else
+		cat <<'EOF' >/etc/lightdm/lightdm.conf.d/20-greeter.conf
 [Seat:*]
 greeter-session=lightdm-gtk-greeter
 user-session=uwsm
 EOF
-fi
+	fi
+}
+
+run_step "Configuring LightDM greeter" configure_lightdm_greeter

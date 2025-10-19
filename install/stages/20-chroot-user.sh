@@ -12,17 +12,19 @@ REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 
 source "$REPO_ROOT/install/lib/common.sh"
 
-# User-level configuration needs to run as the new account so ownership is correct.
-[[ $EUID -ne 0 ]] || abort "Stage 20 must run as the target user, not root"
+verify_user_context() {
+	[[ $EUID -ne 0 ]] || abort "Stage 20 must run as the target user, not root"
 
-# The earlier stages must have produced the state metadata; bail if something went wrong.
-if [[ ! -f "$STATE_FILE" ]]; then
-	abort "Installer state file missing: $STATE_FILE"
-fi
+	if [[ ! -f "$STATE_FILE" ]]; then
+		abort "Installer state file missing: $STATE_FILE"
+	fi
+}
 
-log_info "Running user-level configuration"
+apply_user_configuration() {
+	log_info "Running user-level configuration"
+	run_scripts_in_dir "$REPO_ROOT/install/user.d"
+	log_info "Completed user-level stage"
+}
 
-# Execute user.d scripts sequentially so each component can pull values from the shared state.
-run_scripts_in_dir "$REPO_ROOT/install/user.d"
-
-log_info "Completed user-level stage"
+run_step "Validating user context" verify_user_context
+run_step "Applying user configuration scripts" apply_user_configuration

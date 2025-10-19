@@ -11,10 +11,7 @@ REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 
 source "$REPO_ROOT/install/lib/common.sh"
 
-# Refresh the MIME cache quietly so xdg-mime queries see the latest desktop files.
-update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 || true
-
-declare -a image_types=(
+declare -a IMAGE_TYPES=(
 	image/png
 	image/jpeg
 	image/gif
@@ -23,17 +20,7 @@ declare -a image_types=(
 	image/tiff
 )
 
-# Map all common image types to imv. Re-running simply keeps the preferred handler.
-for mime in "${image_types[@]}"; do
-	xdg-mime default imv.desktop "$mime"
-done
-
-xdg-mime default org.gnome.Evince.desktop application/pdf
-xdg-settings set default-web-browser brave.desktop >/dev/null 2>&1 || true
-xdg-mime default brave.desktop x-scheme-handler/http
-xdg-mime default brave.desktop x-scheme-handler/https
-
-declare -a video_types=(
+declare -a VIDEO_TYPES=(
 	video/mp4
 	video/x-msvideo
 	video/x-matroska
@@ -51,7 +38,30 @@ declare -a video_types=(
 	application/ogg
 )
 
-# Associate video formats with mpv so playback uses the same player across formats.
-for mime in "${video_types[@]}"; do
-	xdg-mime default mpv.desktop "$mime"
-done
+refresh_mime_cache() {
+	update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 || true
+}
+
+set_image_defaults() {
+	for mime in "${IMAGE_TYPES[@]}"; do
+		xdg-mime default imv.desktop "$mime"
+	done
+}
+
+set_pdf_and_browser_defaults() {
+	xdg-mime default org.gnome.Evince.desktop application/pdf
+	xdg-settings set default-web-browser brave.desktop >/dev/null 2>&1 || true
+	xdg-mime default brave.desktop x-scheme-handler/http
+	xdg-mime default brave.desktop x-scheme-handler/https
+}
+
+set_video_defaults() {
+	for mime in "${VIDEO_TYPES[@]}"; do
+		xdg-mime default mpv.desktop "$mime"
+	done
+}
+
+run_step "Refreshing MIME cache" refresh_mime_cache
+run_step "Setting image viewer defaults" set_image_defaults
+run_step "Setting PDF and browser defaults" set_pdf_and_browser_defaults
+run_step "Setting video player defaults" set_video_defaults

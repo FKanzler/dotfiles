@@ -145,18 +145,32 @@ EOF
 	fi
 }
 
-ROOT_MAPPER=$(findmnt -n -o SOURCE / || true)
-IS_ENCRYPTED=0
-if [[ -n "$ROOT_MAPPER" && "$ROOT_MAPPER" == /dev/mapper/* ]]; then
-	IS_ENCRYPTED=1
-fi
+detect_root_encryption() {
+	ROOT_MAPPER=$(findmnt -n -o SOURCE / || true)
+	IS_ENCRYPTED=0
+	if [[ -n "$ROOT_MAPPER" && "$ROOT_MAPPER" == /dev/mapper/* ]]; then
+		IS_ENCRYPTED=1
+		log_info "Detected encrypted root mapper $ROOT_MAPPER"
+	else
+		log_info "Root filesystem not detected as encrypted mapper"
+	fi
+}
 
-configure_limine_defaults
-configure_mkinitcpio
-configure_tpm_unlock
+rebuild_initramfs() {
+	if command -v mkinitcpio >/dev/null 2>&1; then
+		mkinitcpio -P
+	else
+		log_warn "mkinitcpio not available; skipping initramfs rebuild"
+	fi
+}
 
-if command -v mkinitcpio >/dev/null 2>&1; then
-	mkinitcpio -P
-fi
+update_limine_installation() {
+	limine-update || true
+}
 
-limine-update || true
+run_step "Detecting root encryption" detect_root_encryption
+run_step "Configuring Limine defaults" configure_limine_defaults
+run_step "Configuring mkinitcpio" configure_mkinitcpio
+run_step "Configuring TPM auto-unlock" configure_tpm_unlock
+run_step "Rebuilding initramfs" rebuild_initramfs
+run_step "Updating Limine installation" update_limine_installation

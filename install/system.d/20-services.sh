@@ -17,12 +17,15 @@ SERVICES=(
 	systemd-timesyncd.service
 )
 
-# Enable services only when they exist to keep the script safe on minimal setups.
-for service in "${SERVICES[@]}"; do
-	if systemctl list-unit-files --type=service | grep -q "^$service"; then
-		log_info "Enabling $service"
-		systemctl enable "$service"
-	else
-		log_warn "Service $service not present, skipping enablement"
-	fi
-done
+enable_core_services() {
+	for service in "${SERVICES[@]}"; do
+		if systemctl list-unit-files --type=service | grep -q "^$service"; then
+			log_info "Enabling $service"
+			systemctl enable "$service"
+		else
+			log_warn "Service $service not present, skipping enablement"
+		fi
+	done
+}
+
+run_step "Enabling core services" enable_core_services

@@ -11,7 +11,10 @@ REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 
 source "$REPO_ROOT/install/lib/common.sh"
 
-log_info "Installing base package set"
+install_base_packages() {
+	log_info "Installing base package set"
+	# install-packages.sh handles re-runs by using --needed and skipping missing AUR helpers.
+	"$REPO_ROOT/install/scripts/install-packages.sh" "$REPO_ROOT/packages.json"
+}
 
-# install-packages.sh handles re-runs by using --needed and skipping missing AUR helpers.
-"$REPO_ROOT/install/scripts/install-packages.sh" "$REPO_ROOT/packages.json"
+run_step "Installing base package set" install_base_packages

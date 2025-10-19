@@ -11,15 +11,17 @@ REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 
 source "$REPO_ROOT/install/lib/common.sh"
 
-log_info "Finalizing installation - purging installer state"
+remove_chroot_state() {
+	log_info "Finalizing installation - purging installer state"
+	rm -f "$STATE_FILE"
+	log_info "State file removed from chroot"
+}
 
-# Remove the state file from the chroot copy; the host keeps its own copy for
-# debugging so wiping it here is safe and idempotent.
-rm -f "$STATE_FILE"
+purge_generated_artifacts() {
+	log_info "Cleaning up cached installer artifacts"
+	rm -rf "$CACHE_DIR"
+	log_info "Cached artifacts removed"
+}
 
-log_info "State file removed from chroot"
-
-# Remove any credential artifacts we no longer need post-install.
-rm -rf "$CACHE_DIR"
-
-log_info "Cleaned up generated credential files"
+run_step "Removing chroot state file" remove_chroot_state
+run_step "Purging cached installer artifacts" purge_generated_artifacts
