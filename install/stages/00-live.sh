@@ -61,7 +61,18 @@ collect_input() {
 	local confirm_value
 
 	while true; do
-		value=$(gum input --prompt "$prompt: " --placeholder "$placeholder" || abort "Installer cancelled by user.")
+		value=$(gum input --prompt "$prompt: " --placeholder "$placeholder")
+		local status=$?
+		case $status in
+		0)
+			;;
+		130)
+			abort "Installer cancelled by user."
+			;;
+		*)
+			abort "gum input failed with exit code $status"
+			;;
+		esac
 
 		if [[ -n "$validator" && -n "$value" && ! "$value" =~ $validator ]]; then
 			log_warn "Input does not match required format, please try again."
@@ -69,7 +80,18 @@ collect_input() {
 		fi
 
 		if ((require_confirmation)); then
-			confirm_value=$(gum input --prompt "Confirm $placeholder: " --placeholder "$placeholder" || abort "Installer cancelled by user.")
+			confirm_value=$(gum input --prompt "Confirm $placeholder: " --placeholder "$placeholder")
+			status=$?
+			case $status in
+			0)
+				;;
+			130)
+				abort "Installer cancelled by user."
+				;;
+			*)
+				abort "gum input failed with exit code $status"
+				;;
+			esac
 			if [[ "$value" != "$confirm_value" ]]; then
 				log_warn "Values do not match, please try again."
 				continue
