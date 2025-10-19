@@ -14,7 +14,7 @@ TARGET_ROOT=${TARGET_ROOT:-/mnt}
 BOOTSTRAP_DIR="$TARGET_ROOT/root/arch-bootstrap"
 
 # Ensure the base tools exist before any heavy lifting.
-require_commands pacman jq sed awk
+require_commands pacman
 
 if ! command -v arch-chroot >/dev/null 2>&1; then
 	log_warn "arch-chroot is missing. Run from the Arch ISO or set ARCH_CHROOT_CMD before continuing."
@@ -23,6 +23,21 @@ fi
 # Install lightweight helpers when running in a bare environment.
 if ! command -v gum >/dev/null 2>&1; then
 	run_step "Installing gum for interactive prompts" pacman -Sy --noconfirm --needed gum
+fi
+
+# Install lightweight helpers when running in a bare environment.
+if ! command -v jq >/dev/null 2>&1; then
+	run_step "Installing jq for JSON processing" pacman -Sy --noconfirm --needed jq
+fi
+
+# Install lightweight helpers when running in a bare environment.
+if ! command -v sed >/dev/null 2>&1; then
+	run_step "Installing sed for text processing" pacman -Sy --noconfirm --needed sed
+fi
+
+# Install lightweight helpers when running in a bare environment.
+if ! command -v awk >/dev/null 2>&1; then
+	run_step "Installing awk for text processing" pacman -Sy --noconfirm --needed gawk
 fi
 
 # Simple banner to make it obvious the installer started.

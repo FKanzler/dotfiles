@@ -118,14 +118,28 @@ while true; do
 	fi
 done
 
-# Generate a random recovery key for disk encryption and require the user to confirm it.
+# Generate a 48-digit numeric recovery key in BitLocker format (8 groups of 6 digits).
 generate_recovery_key() {
-	openssl rand -base64 48 | tr -d '\n'
+	# Read exactly 48 digits from /dev/urandom
+	local digits
+	digits=$(tr -dc '0-9' </dev/urandom | head -c 48)
+
+	# Safety: if for some reason we didn't get 48 digits (very unlikely), pad/regenerate
+	if [ "${#digits}" -lt 48 ]; then
+		# try again until we have 48
+		while [ "${#digits}" -lt 48 ]; do
+			digits="${digits}$(tr -dc '0-9' </dev/urandom | head -c $((48 - ${#digits})))"
+		done
+	fi
+
+	# Format as 8 groups of 6 digits separated by hyphens (BitLocker style)
+	echo "${digits}" | sed -E 's/.{6}/&-/g' | sed 's/-$//'
 }
 
 while true; do
 	ENCRYPTION_KEY=$(generate_recovery_key)
-	gum style "Save this disk encryption recovery key somewhere safe:\n\n$ENCRYPTION_KEY\n"
+	gum style --foreground=212 "Save this disk encryption recovery key somewhere safe:"
+	gum style --foreground=10 --bold --border rounded --padding "1 2" "$ENCRYPTION_KEY"
 	if gum confirm --affirmative "Continue" --negative "Generate new key" "Have you written down the recovery key?"; then
 		break
 	fi
