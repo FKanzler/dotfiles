@@ -265,8 +265,6 @@ generate_config_files() {
 	local config_repo_url=$(get_state_value "config_repo")
 	local timezone=$(get_state_value "timezone")
 
-	cleanup_previous_install "$disk"
-
 	local disk_size=$(lsblk -bdno SIZE "$disk" 2>/dev/null || true)
 	local mib=$((1024 * 1024))
 	local gib=$((mib * 1024))
@@ -417,6 +415,10 @@ generate_config_files() {
 }
 
 run_archinstall() {
+	local disk=$(get_state_value "disk")
+
+	cleanup_previous_install "$disk"
+
 	archinstall \
 		--config "$CACHE_DIR/user_configuration.json" \
 		--creds "$CACHE_DIR/user_credentials.json" \
