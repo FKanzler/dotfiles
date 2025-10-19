@@ -51,7 +51,7 @@ run_stage_script() {
 	if [[ ! -f "$stage_script" ]]; then
 		abort "Missing stage script: $stage_script"
 	fi
-	bash "$stage_script" "$STATE_FILE"
+	bash -x "$stage_script" "$STATE_FILE"
 	log_info "Finished stage $(basename "$stage_script")"
 }
 
