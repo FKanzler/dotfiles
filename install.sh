@@ -12,47 +12,17 @@ STATE_FILE="$REPO_ROOT/install/state.json"
 STAGES_DIR="$REPO_ROOT/install/stages"
 TARGET_ROOT=${TARGET_ROOT:-/mnt}
 BOOTSTRAP_DIR="$TARGET_ROOT/root/arch-bootstrap"
-CACHE_DIR=${ARCH_BOOTSTRAP_CACHE_DIR:-/var/tmp/arch-bootstrap}
-
-# Ensure the base tools exist before any heavy lifting.
-require_commands pacman
-
 if ! command -v arch-chroot >/dev/null 2>&1; then
 	log_warn "arch-chroot is missing. Run from the Arch ISO or set ARCH_CHROOT_CMD before continuing."
 fi
-
-# Install lightweight helpers when running in a bare environment.
-if ! command -v gum >/dev/null 2>&1; then
-	run_step "Installing gum for interactive prompts" pacman -Sy --noconfirm --needed gum
-fi
-
-# Install lightweight helpers when running in a bare environment.
-if ! command -v jq >/dev/null 2>&1; then
-	run_step "Installing jq for JSON processing" pacman -Sy --noconfirm --needed jq
-fi
-
-# Install lightweight helpers when running in a bare environment.
-if ! command -v sed >/dev/null 2>&1; then
-	run_step "Installing sed for text processing" pacman -Sy --noconfirm --needed sed
-fi
-
-# Install lightweight helpers when running in a bare environment.
-if ! command -v awk >/dev/null 2>&1; then
-	run_step "Installing awk for text processing" pacman -Sy --noconfirm --needed gawk
-fi
+# Ensure the base tools exist before any heavy lifting.
+require_commands pacman gum:gum tar:tar
 
 # Simple banner to make it obvious the installer started.
 clear
 gum style --bold --border double --padding "1 2" --margin "1 0" "ARCH INSTALLER"
 
 # Wrapper that validates a stage before executing it.
-run_stage_script() {
-	local stage_script=$1
-	if [[ ! -f "$stage_script" ]]; then
-		abort "Missing stage script: $stage_script"
-	fi
-	bash "$stage_script" "$STATE_FILE"
-}
 
 # Stage 00 prepares disks, runs archinstall, and writes state.
 run_stage_script "$STAGES_DIR/00-live.sh"

@@ -6,29 +6,14 @@ set -euo pipefail
 # archinstall configuration, executes the installer, and records the
 # gathered state for downstream stages.
 
-STATE_FILE=${1:? "State file path required as first argument"}
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
+CACHE_DIR=${ARCH_BOOTSTRAP_CACHE_DIR:-/var/tmp/arch-bootstrap}
 
 source "$REPO_ROOT/install/lib/common.sh"
 
 # Ensure package manager is available for lightweight helper installs.
-require_commands pacman
-
-if ! command -v gum >/dev/null 2>&1; then
-	run_step "Installing gum for interactive prompts" pacman -Sy --noconfirm --needed gum
-fi
-
-if ! command -v jq >/dev/null 2>&1; then
-	run_step "Installing jq for JSON processing" pacman -Sy --noconfirm --needed jq
-fi
-
-if ! command -v awk >/dev/null 2>&1; then
-	run_step "Installing gawk for text processing" pacman -Sy --noconfirm --needed gawk
-fi
-
-# Basic tooling requirements for the live stage.
-require_commands gum archinstall jq curl lsblk awk findmnt openssl lspci
+require_commands pacman gum:gum jq:jq sed:sed awk:gawk archinstall:archinstall curl:curl lsblk:lsblk findmnt:findmnt openssl:openssl lspci:lspci
 
 # Allow advanced users to override the mount point when chaining stages manually.
 TARGET_ROOT=${TARGET_ROOT:-/mnt}
@@ -68,84 +53,30 @@ cleanup_previous_install() {
 	fi
 }
 
-# Simple cache so repeated runs can reuse previous answers.
-CACHE_DIR=${ARCH_BOOTSTRAP_CACHE_DIR:-/var/tmp/arch-bootstrap}
-ANSWERS_FILE="$CACHE_DIR/user_inputs.json"
-ensure_directory "$CACHE_DIR"
-
-USERNAME=""
-PASSWORD_HASH=""
-ENCRYPTION_KEY=""
-HOSTNAME=""
-TIMEZONE=""
-CONFIG_REPO_URL=""
-GIT_NAME=""
-GIT_EMAIL=""
-SELECTED_DISK=""
-ARCHINSTALL_COMPLETED=0
-
-load_saved_inputs() {
-	if [[ ! -f "$ANSWERS_FILE" ]]; then
-		return 0
-	fi
-
-	USERNAME=$(jq -r '.username // ""' "$ANSWERS_FILE")
-	PASSWORD_HASH=$(jq -r '.password_hash // ""' "$ANSWERS_FILE")
-	ENCRYPTION_KEY=$(jq -r '.encryption_key // ""' "$ANSWERS_FILE")
-	HOSTNAME=$(jq -r '.hostname // ""' "$ANSWERS_FILE")
-	TIMEZONE=$(jq -r '.timezone // ""' "$ANSWERS_FILE")
-	CONFIG_REPO_URL=$(jq -r '.config_repo // ""' "$ANSWERS_FILE")
-	GIT_NAME=$(jq -r '.git_name // ""' "$ANSWERS_FILE")
-	GIT_EMAIL=$(jq -r '.git_email // ""' "$ANSWERS_FILE")
-	SELECTED_DISK=$(jq -r '.disk // ""' "$ANSWERS_FILE")
-	if jq -e '.archinstall_completed == true' "$ANSWERS_FILE" >/dev/null 2>&1; then
-		ARCHINSTALL_COMPLETED=1
-	fi
-	return 0
-}
-
-persist_inputs() {
-	local tmp
-	tmp=$(mktemp)
-
-	jq -n \
-		--arg username "$USERNAME" \
-		--arg password_hash "$PASSWORD_HASH" \
-		--arg encryption_key "$ENCRYPTION_KEY" \
-		--arg hostname "$HOSTNAME" \
-		--arg timezone "$TIMEZONE" \
-		--arg config_repo "$CONFIG_REPO_URL" \
-		--arg git_name "$GIT_NAME" \
-		--arg git_email "$GIT_EMAIL" \
-		--arg disk "$SELECTED_DISK" \
-		--argjson completed "$ARCHINSTALL_COMPLETED" \
-		'{
-			username: (if $username == "" then null else $username end),
-			password_hash: (if $password_hash == "" then null else $password_hash end),
-			encryption_key: (if $encryption_key == "" then null else $encryption_key end),
-			hostname: (if $hostname == "" then null else $hostname end),
-			timezone: (if $timezone == "" then null else $timezone end),
-			config_repo: (if $config_repo == "" then null else $config_repo end),
-			git_name: (if $git_name == "" then null else $git_name end),
-			git_email: (if $git_email == "" then null else $git_email end),
-			disk: (if $disk == "" then null else $disk end),
-			archinstall_completed: $completed
-		}' >"$tmp"
-
-	mv "$tmp" "$ANSWERS_FILE"
-}
-
 collect_input() {
 	local prompt=$1
 	local placeholder=$2
-	local validator=$3
+	local confirmation=$3
+	local validator=$4
 	local value
+	local confirm_value
 
 	while true; do
-		value=$(gum input --prompt "$prompt: " --placeholder "$placeholder")
-		if [[ -z "$validator" || "$value" =~ $validator ]]; then
+		value=$(gum input --prompt "$prompt: " --placeholder "$placeholder" || abort "Installer cancelled by user.")
+
+		if [[ -n "$confirmation" ]]; then
+			confirm_value=$(gum input --prompt "Confirm $placeholder: " --placeholder "$placeholder" || abort "Installer cancelled by user.")
+		fi
+
+		if [[ -n "$validator" && ! "$value" =~ $validator ]]; then
+			log_warn "Input does not match required format, please try again."
 			printf '%s\n' "$value"
 			return 0
+		fi
+
+		if [[ -n "$confirmation" && "$value" != "$confirm_value" ]]; then
+			log_warn "Values do not match, please try again."
+			continue
 		fi
 	done
 }
@@ -169,13 +100,26 @@ select_disk() {
 		size=$(lsblk -dno SIZE "$device" 2>/dev/null)
 		model=$(lsblk -dno MODEL "$device" 2>/dev/null | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
 		line="$device"
-		[[ -n "$size" ]] && line="$line ($size)"
+		# Show size without decimal places for GiB and TiB
+		if [[ -n "$size" ]]; then
+			# check if size greater than or equal to 12 GiB
+			if (($(numfmt --from=iec "$size") < 12884901888)); then
+				continue
+			fi
+
+			# Convert size to human-readable format between GiB and TiB
+			size=$(numfmt --to=iec --format="%.1f" "$size")
+			line="$line ($size)"
+		else
+			continue
+		fi
+
 		[[ -n "$model" ]] && line="$line - $model"
 		options+="$line"$'\n'
 	done <<<"$disks"
 
 	local selected
-	selected=$(echo "$options" | gum choose --header "Select installation disk")
+	selected=$(echo "$options" | gum choose --header "Select installation disk" || abort "Installer cancelled by user.")
 	echo "$selected" | awk '{print $1}'
 }
 
@@ -194,121 +138,98 @@ generate_recovery_key() {
 	echo "${digits}" | sed -E 's/.{6}/&-/g' | sed 's/-$//'
 }
 
-load_saved_inputs
+collect_values() {
+	set_state_value "hostname" $(collect_input "Hostname" "Hostname" 0 '^[A-Za-z_][A-Za-z0-9_-]*$')
 
-USE_SAVED_INPUTS=0
-RUN_ARCHINSTALL=1
+	local root_password=$(collect_input "Root Password" "Root Password" 1 '^.{8,}$')
+	set_state_value "rootPassword" $(openssl passwd -6 "$root_password")
 
-if [[ -f "$ANSWERS_FILE" ]]; then
-	if gum confirm --affirmative "Use saved data" --negative "Enter new values" "Reuse answers from the previous run?"; then
-		USE_SAVED_INPUTS=1
-		if ((ARCHINSTALL_COMPLETED == 1)); then
-			if ! gum confirm --affirmative "Run again" --negative "Skip" "Archinstall already completed. Run it again?"; then
-				RUN_ARCHINSTALL=0
-			else
-				RUN_ARCHINSTALL=1
-				ARCHINSTALL_COMPLETED=0
-			fi
-		fi
-	else
-		USE_SAVED_INPUTS=0
-	fi
-fi
+	set_state_value "username" $(collect_input "Username" "Username" 0 '^[a-z_][a-z0-9_-]*[$]?$')
 
-if ((USE_SAVED_INPUTS == 0)); then
-	USERNAME=$(collect_input "Username" "Username" '^[a-z_][a-z0-9_-]*[$]?$')
+	local password=$(collect_input "Password" "Password" 1 '^.{8,}$')
+	set_state_value "password" $(openssl passwd -6 "$password")
 
+	set_state_value "gitName" $(collect_input "Git author name (optional)" "Git Name")
+	set_state_value "gitEmail" $(collect_input "Git author email (optional)" "Git Email" '^[^@]+@[^@]+\.[^@]+$')
+	set_state_value "configRepoUrl" $(collect_input "Config Git repository URL (optional)" "Config Repo URL")
+
+	local selected_disk
 	while true; do
-		PASSWORD=$(gum input --placeholder "Password" --password)
-		CONFIRM=$(gum input --placeholder "Confirm password" --password)
-		if [[ -n "$PASSWORD" && "$PASSWORD" == "$CONFIRM" ]]; then
-			break
-		fi
-		log_warn "Passwords do not match, please try again."
-	done
-	PASSWORD_HASH=$(openssl passwd -6 "$PASSWORD")
-	unset PASSWORD CONFIRM
-
-	HOSTNAME=$(collect_input "Hostname" "Hostname" '^[A-Za-z_][A-Za-z0-9_-]*$')
-
-	TIMEZONE=$(curl -s https://ipapi.co/timezone || true)
-	TIMEZONE=${TIMEZONE:-Europe/Berlin}
-
-	GIT_NAME=$(gum input --placeholder "Git author name (optional)")
-	GIT_EMAIL=$(gum input --placeholder "Git author email (optional)")
-	CONFIG_REPO_URL=$(gum input --placeholder "Config Git repository URL (optional)")
-
-	while true; do
-		SELECTED_DISK=$(select_disk)
-		if [[ -z "$SELECTED_DISK" || ! -b "$SELECTED_DISK" ]]; then
+		selected_disk=$(select_disk)
+		if [[ -z "$selected_disk" || ! -b "$selected_disk" ]]; then
 			log_warn "Invalid selection, please choose a disk."
 			continue
 		fi
 
-		if gum confirm --affirmative "Erase" --negative "Choose again" "Erase all data on $SELECTED_DISK and continue?"; then
+		local confirmation=$(gum confirm --affirmative "Erase" --negative "Choose again" "Erase all data on $selected_disk and continue?" || abort "Installer cancelled by user.")
+		if [[ "$confirmation" == "true" ]]; then
 			break
 		fi
 	done
+	set_state_value "disk" "$selected_disk"
 
+	local encryption_key
 	while true; do
-		ENCRYPTION_KEY=$(generate_recovery_key)
+		encryption_key=$(generate_recovery_key)
 		gum style --foreground=212 "Save this disk encryption recovery key somewhere safe:"
-		gum style --foreground=10 --bold --border rounded --padding "1 2" "$ENCRYPTION_KEY"
-		if gum confirm --affirmative "Continue" --negative "Generate new key" "Have you written down the recovery key?"; then
+		gum style --foreground=10 --bold --border rounded --padding "1 2" "$encryption_key"
+		local confirmation=$(gum confirm --affirmative "Continue" --negative "Generate new key" "Have you written down the recovery key?" || abort "Installer cancelled by user.")
+		if [[ "$confirmation" == "true" ]]; then
 			break
 		fi
 	done
+	set_state_value "encryptionKey" "$encryption_key"
 
-	ARCHINSTALL_COMPLETED=0
-	persist_inputs
-else
-	if [[ -z "$USERNAME" || -z "$PASSWORD_HASH" || -z "$ENCRYPTION_KEY" || -z "$HOSTNAME" || -z "$SELECTED_DISK" ]]; then
-		abort "Saved answers are incomplete. Please enter new values."
-	fi
-	if ((RUN_ARCHINSTALL == 1)); then
-		ARCHINSTALL_COMPLETED=0
-		persist_inputs
-	fi
-fi
+	local timezone=$(curl -s https://ipapi.co/timezone || true)
+	timezone=${timezone:-Europe/Berlin}
+	set_state_value "timezone" "$timezone"
+}
 
-if ((RUN_ARCHINSTALL != 0)); then
-	cleanup_previous_install "$SELECTED_DISK"
+generate_config_files() {
+	local disk=$(get_state_value "disk")
+	local username=$(get_state_value "username")
+	local hostname=$(get_state_value "hostname")
+	local password_hash=$(get_state_value "password")
+	local root_password_hash=$(get_state_value "rootPassword")
+	local encryption_key=$(get_state_value "encryptionKey")
+	local config_repo_url=$(get_state_value "configRepoUrl")
+	local timezone=$(get_state_value "timezone")
 
-	DISK_SIZE=$(lsblk -bdno SIZE "$SELECTED_DISK")
-	MIB=$((1024 * 1024))
-	GIB=$((MIB * 1024))
-	DISK_SIZE_MIB=$((DISK_SIZE / MIB * MIB))
-	GPT_BACKUP_RESERVE=$((MIB))
-	BOOT_PARTITION_START=$((MIB))
-	BOOT_PARTITION_SIZE=$((2 * GIB))
-	MAIN_PARTITION_START=$((BOOT_PARTITION_SIZE + BOOT_PARTITION_START))
-	MAIN_PARTITION_SIZE=$((DISK_SIZE_MIB - MAIN_PARTITION_START - GPT_BACKUP_RESERVE))
+	cleanup_previous_install "$disk"
 
-	((MAIN_PARTITION_SIZE >= 12 * GIB)) || abort "Disk is too small. Minimum required is 12 GiB."
+	local disk_size=$(lsblk -bdno SIZE "$disk" 2>/dev/null || true)
+	local mib=$((1024 * 1024))
+	local gib=$((mib * 1024))
+	local disk_size_mib=$((disk_size / mib * mib))
+	local gpt_backup_reserve=$((mib))
+	local boot_partition_start=$((mib))
+	local boot_partition_size=$((2 * gib))
+	local main_partition_start=$((boot_partition_size + boot_partition_start))
+	local main_partition_size=$((disk_size_mib - main_partition_start - gpt_backup_reserve))
 
-	KERNEL_PACKAGE="linux"
+	local kernel_package="linux"
 	if lspci -nn 2>/dev/null | grep -q "106b:180[12]"; then
-		KERNEL_PACKAGE="linux-t2"
+		kernel_package="linux-t2"
 	fi
 
-	PASSWORD_HASH_ESCAPED=$(printf '%s' "$PASSWORD_HASH" | jq -Rsa)
-	ENCRYPTION_KEY_ESCAPED=$(printf '%s' "$ENCRYPTION_KEY" | jq -Rsa)
-	USERNAME_ESCAPED=$(printf '%s' "$USERNAME" | jq -Rsa)
+	local password_hash_escaped=$(printf '%s' "$password_hash" | jq -Rsa)
+	local encryption_key_escaped=$(printf '%s' "$encryption_key" | jq -Rsa)
+	local username_escaped=$(printf '%s' "$username" | jq -Rsa)
 
 	# Clean up any previous runs.
-	rm -f "$REPO_ROOT/user_credentials.json" "$REPO_ROOT/user_configuration.json" "$REPO_ROOT/install/state.json"
+	rm -f "$CACHE_DIR/user_credentials.json" "$CACHE_DIR/user_configuration.json"
 
 	# Write user + encryption credentials for archinstall.
 	cat <<-JSON >"$REPO_ROOT/user_credentials.json"
 		{
-		    "encryption_password": $ENCRYPTION_KEY_ESCAPED,
-		    "root_enc_password": $PASSWORD_HASH_ESCAPED,
+		    "encryption_password": $encryption_key_escaped,
+		    "root_enc_password": $password_hash_escaped,
 		    "users": [
 		        {
-		            "enc_password": $PASSWORD_HASH_ESCAPED,
+		            "enc_password": $password_hash_escaped,
 		            "groups": [],
 		            "sudo": true,
-		            "username": $USERNAME_ESCAPED
+		            "username": $username_escaped
 		        }
 		    ]
 		}
@@ -332,7 +253,7 @@ if ((RUN_ARCHINSTALL != 0)); then
 		        "config_type": "default_layout",
 		        "device_modifications": [
 		            {
-		                "device": "$SELECTED_DISK",
+		                "device": "$disk",
 		                "partitions": [
 		                    {
 		                        "btrfs": [],
@@ -345,12 +266,12 @@ if ((RUN_ARCHINSTALL != 0)); then
 		                        "size": {
 		                            "sector_size": { "unit": "B", "value": 512 },
 		                            "unit": "B",
-		                            "value": $BOOT_PARTITION_SIZE
+		                            "value": $boot_partition_size
 		                        },
 		                        "start": {
 		                            "sector_size": { "unit": "B", "value": 512 },
 		                            "unit": "B",
-		                            "value": $BOOT_PARTITION_START
+		                            "value": $boot_partition_start
 		                        },
 		                        "status": "create",
 		                        "type": "primary"
@@ -371,12 +292,12 @@ if ((RUN_ARCHINSTALL != 0)); then
 		                        "size": {
 		                            "sector_size": { "unit": "B", "value": 512 },
 		                            "unit": "B",
-		                            "value": $MAIN_PARTITION_SIZE
+		                            "value": $main_partition_size
 		                        },
 		                        "start": {
 		                            "sector_size": { "unit": "B", "value": 512 },
 		                            "unit": "B",
-		                            "value": $MAIN_PARTITION_START
+		                            "value": $main_partition_start
 		                        },
 		                        "status": "create",
 		                        "type": "primary"
@@ -390,18 +311,18 @@ if ((RUN_ARCHINSTALL != 0)); then
 		            "lvm_volumes": [],
 		            "iter_time": 2000,
 		            "partitions": [ "root-partition" ],
-		            "encryption_password": $ENCRYPTION_KEY_ESCAPED
+		            "encryption_password": $encryption_key_escaped
 		        }
 		    },
-		    "hostname": "$HOSTNAME",
-		    "kernels": [ "$KERNEL_PACKAGE" ],
+		    "hostname": "$hostname",
+		    "kernels": [ "$kernel_package" ],
 		    "network_config": { "type": "iso" },
 		    "ntp": true,
 		    "parallel_downloads": 8,
 		    "script": null,
 		    "services": [],
 		    "swap": true,
-		    "timezone": "$TIMEZONE",
+		    "timezone": "$timezone",
 		    "locale_config": {
 		        "kb_layout": "us",
 		        "sys_enc": "UTF-8",
@@ -422,48 +343,15 @@ if ((RUN_ARCHINSTALL != 0)); then
 		    "version": "3.0.9"
 		}
 	JSON
+}
 
-	gum style --foreground 3 "Running Archinstall..."
-
+run_archinstall() {
 	archinstall \
 		--config "$REPO_ROOT/user_configuration.json" \
 		--creds "$REPO_ROOT/user_credentials.json" \
 		--silent
+}
 
-	ARCHINSTALL_COMPLETED=1
-	persist_inputs
-fi
-
-GIT_NAME_JSON="null"
-GIT_EMAIL_JSON="null"
-if [[ -n "$GIT_NAME" ]]; then
-	GIT_NAME_JSON=$(printf '%s' "$GIT_NAME" | jq -Rsa)
-fi
-if [[ -n "$GIT_EMAIL" ]]; then
-	GIT_EMAIL_JSON=$(printf '%s' "$GIT_EMAIL" | jq -Rsa)
-fi
-
-CONFIG_REPO_JSON="null"
-if [[ -n "$CONFIG_REPO_URL" ]]; then
-	CONFIG_REPO_JSON=$(printf '%s' "$CONFIG_REPO_URL" | jq -Rsa)
-fi
-
-ENCRYPTION_KEY_ESCAPED=$(printf '%s' "$ENCRYPTION_KEY" | jq -Rsa)
-
-cat <<-JSON >"$STATE_FILE"
-	{
-	    "username": "$USERNAME",
-	    "hostname": "$HOSTNAME",
-	    "disk": "$SELECTED_DISK",
-	    "timezone": "$TIMEZONE",
-	    "target_root": "$TARGET_ROOT",
-	    "git": {
-	        "name": $GIT_NAME_JSON,
-	        "email": $GIT_EMAIL_JSON
-	    },
-	    "config_repo": $CONFIG_REPO_JSON,
-	    "encryption_password": $ENCRYPTION_KEY_ESCAPED
-	}
-JSON
-
-log_info "Base installation complete. Proceeding with configuration stages."
+run_step "Collecting user input" collect_values
+run_step "Generating configuration files" generate_config_files
+run_step "Running archinstall" run_archinstall
