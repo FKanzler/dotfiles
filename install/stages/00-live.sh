@@ -81,6 +81,29 @@ collect_input() {
 	done
 }
 
+gum_confirm_prompt() {
+	local affirmative=$1
+	local negative=$2
+	local message=$3
+
+	gum confirm --affirmative "$affirmative" --negative "$negative" "$message"
+	local status=$?
+	case $status in
+	0)
+		return 0
+		;;
+	1)
+		return 1
+		;;
+	130)
+		abort "Installer cancelled by user."
+		;;
+	*)
+		abort "gum confirm failed with exit code $status"
+		;;
+	esac
+}
+
 select_disk() {
 	local exclude_disk
 	exclude_disk=$(findmnt -no SOURCE /run/archiso/bootmnt 2>/dev/null || true)
@@ -176,8 +199,7 @@ collect_values() {
 			continue
 		fi
 
-		local confirmation=$(gum confirm --affirmative "Erase" --negative "Choose again" "Erase all data on $selected_disk and continue?" || abort "Installer cancelled by user.")
-		if [[ "$confirmation" == "true" ]]; then
+		if gum_confirm_prompt "Erase" "Choose again" "Erase all data on $selected_disk and continue?"; then
 			break
 		fi
 	done
@@ -188,8 +210,7 @@ collect_values() {
 		encryption_key=$(generate_recovery_key)
 		gum style --foreground=212 "Save this disk encryption recovery key somewhere safe:"
 		gum style --foreground=10 --bold --border rounded --padding "1 2" "$encryption_key"
-		local confirmation=$(gum confirm --affirmative "Continue" --negative "Generate new key" "Have you written down the recovery key?" || abort "Installer cancelled by user.")
-		if [[ "$confirmation" == "true" ]]; then
+		if gum_confirm_prompt "Continue" "Generate new key" "Have you written down the recovery key?"; then
 			break
 		fi
 	done
@@ -370,13 +391,12 @@ run_archinstall() {
 
 confirm_continue_previous() {
 	if exists_previous_state; then
-		local continue_confirmation
-		continue_confirmation=$(gum confirm --affirmative "Continue" --negative "Reset" "Previous installation state detected. Do you want to continue or reset the state and start fresh?" || abort "Installer cancelled by user.")
-
-		if [[ "$continue_confirmation" == "false" ]]; then
-			reset_state_file
-			log_info "Previous installation state reset."
+		if gum_confirm_prompt "Continue" "Reset" "Previous installation state detected. Do you want to continue or reset the state and start fresh?"; then
+			return
 		fi
+
+		reset_state_file
+		log_info "Previous installation state reset."
 	fi
 }
 
