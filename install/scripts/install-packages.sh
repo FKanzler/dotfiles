@@ -5,7 +5,7 @@ set -euo pipefail
 # Install packages defined in packages.json using pacman and optionally an AUR helper.
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
+REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 PACKAGE_FILE=${1:-"$REPO_ROOT/packages.json"}
 
 source "$REPO_ROOT/install/lib/common.sh"

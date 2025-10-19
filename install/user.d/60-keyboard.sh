@@ -7,7 +7,7 @@ set -euo pipefail
 STATE_FILE=${1:? "State file path required"}
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
+REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 
 source "$REPO_ROOT/install/lib/common.sh"
 
