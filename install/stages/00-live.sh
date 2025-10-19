@@ -425,22 +425,6 @@ run_archinstall() {
 		--silent
 }
 
-confirm_continue_previous() {
-	clear
-	gum style --bold --border double --padding "1 2" --margin "1 0" "ARCH INSTALLER"
-
-	if exists_previous_state; then
-		if gum_confirm_prompt "Continue" "Reset" "Previous installation state detected. Do you want to continue or reset the state and start fresh?"; then
-			return
-		fi
-
-		reset_state_file
-		log_info "Previous installation state reset."
-	fi
-}
-
-confirm_continue_previous
-
 run_step "Collecting user input" collect_values
 run_step "Generating configuration files" generate_config_files
 run_step "Running archinstall" run_archinstall

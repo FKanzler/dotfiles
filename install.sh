@@ -20,6 +20,22 @@ fi
 # Ensure the base tools exist before any heavy lifting.
 require_commands pacman gum:gum tar:tar
 
+confirm_continue_previous() {
+	clear
+	gum style --bold --border double --padding "1 2" --margin "1 0" "ARCH INSTALLER"
+
+	if exists_previous_state; then
+		if gum_confirm_prompt "Continue" "Reset" "Previous installation state detected. Do you want to continue or reset the state and start fresh?"; then
+			return
+		fi
+
+		reset_state_file
+		log_info "Previous installation state reset."
+	fi
+}
+
+confirm_continue_previous
+
 # Stage 00 prepares disks, runs archinstall, and writes state.
 run_stage "$STAGES_DIR/00-live.sh"
 
