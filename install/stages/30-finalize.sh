@@ -20,6 +20,6 @@ rm -f "$STATE_FILE"
 log_info "State file removed from chroot"
 
 # Remove any credential artifacts we no longer need post-install.
-rm -f "$REPO_ROOT/user_credentials.json" "$REPO_ROOT/user_configuration.json"
+rm -rf "$CACHE_DIR"
 
 log_info "Cleaned up generated credential files"

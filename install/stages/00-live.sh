@@ -8,9 +8,8 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
-CACHE_DIR=${ARCH_BOOTSTRAP_CACHE_DIR:-/var/tmp/arch-bootstrap}
-
 source "$REPO_ROOT/install/lib/common.sh"
+ensure_directory "$CACHE_DIR"
 
 # Ensure package manager is available for lightweight helper installs.
 require_commands pacman gum:gum jq:jq sed:sed awk:gawk archinstall:archinstall curl:curl lsblk:lsblk findmnt:findmnt openssl:openssl lspci:lspci
@@ -236,7 +235,7 @@ generate_config_files() {
 	rm -f "$CACHE_DIR/user_credentials.json" "$CACHE_DIR/user_configuration.json"
 
 	# Write user + encryption credentials for archinstall.
-	cat <<-JSON >"$REPO_ROOT/user_credentials.json"
+	cat <<-JSON >"$CACHE_DIR/user_credentials.json"
 		{
 		    "encryption_password": $encryption_key_escaped,
 		    "root_enc_password": $password_hash_escaped,
@@ -252,7 +251,7 @@ generate_config_files() {
 	JSON
 
 	# Render the full archinstall configuration.
-	cat <<-JSON >"$REPO_ROOT/user_configuration.json"
+	cat <<-JSON >"$CACHE_DIR/user_configuration.json"
 		{
 		    "app_config": null,
 		    "archinstall-language": "English",
@@ -363,8 +362,8 @@ generate_config_files() {
 
 run_archinstall() {
 	archinstall \
-		--config "$REPO_ROOT/user_configuration.json" \
-		--creds "$REPO_ROOT/user_credentials.json" \
+		--config "$CACHE_DIR/user_configuration.json" \
+		--creds "$CACHE_DIR/user_credentials.json" \
 		--silent
 }
 

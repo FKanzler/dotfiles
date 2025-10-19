@@ -5,9 +5,10 @@ set -euo pipefail
 # Locate the repository root and source shared helpers.
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$SCRIPT_DIR
-STATE_FILE="$REPO_ROOT/install/state.json"
-export ARCH_BOOTSTRAP_STATE_FILE="$STATE_FILE"
 source "$REPO_ROOT/install/lib/common.sh"
+STATE_FILE=${STATE_FILE}
+export ARCH_BOOTSTRAP_STATE_FILE="$STATE_FILE"
+ensure_directory "$CACHE_DIR"
 
 # Paths reused across the staged installer.
 STAGES_DIR="$REPO_ROOT/install/stages"
@@ -62,9 +63,5 @@ arch_chroot "$TARGET_ROOT" "runuser -u $USERNAME -- /bin/bash -lc 'ARCH_BOOTSTRA
 if [[ -f "$STAGES_DIR/30-finalize.sh" ]]; then
 	arch_chroot "$TARGET_ROOT" "ARCH_BOOTSTRAP_STATE_FILE=/root/arch-bootstrap/install/state.json bash /root/arch-bootstrap/install/stages/30-finalize.sh /root/arch-bootstrap/install/state.json"
 fi
-
-# Remove sensitive files that are no longer needed.
-rm -f "$STATE_FILE" "$REPO_ROOT/user_credentials.json" "$REPO_ROOT/user_configuration.json"
-rm -rf "$CACHE_DIR"
 
 log_info "Installation stages completed. You can reboot into the new system when ready."

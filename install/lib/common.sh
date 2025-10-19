@@ -16,7 +16,7 @@ STATE_VALUES=()
 COMPLETED_STAGES=()
 COMPLETED_SCRIPTS=()
 COMPLETED_STEP=0
-CURRENT_STEP=0
+STEP_INDEX=0
 
 # ANSI color helpers for readable log lines.
 COLOR_RESET=$'\033[0m'
@@ -169,7 +169,7 @@ init_state() {
 	mapfile -t COMPLETED_STAGES < <(jq -r '.stages // [] | .[]' "$STATE_FILE")
 	mapfile -t COMPLETED_SCRIPTS < <(jq -r '.scripts // [] | .[]' "$STATE_FILE")
 	COMPLETED_STEP=$(jq -r '.step // 0' "$STATE_FILE")
-	CURRENT_STEP=0
+	STEP_INDEX=0
 
 	INIT_STATE=1
 }
@@ -258,7 +258,7 @@ complete_script() {
 		.scripts = (.scripts // [] | if index($script) == null then . + [$script] else . end)
 		| .step = 0'
 	COMPLETED_STEP=0
-	CURRENT_STEP=0
+	STEP_INDEX=0
 }
 
 # Check if a script is marked complete in the state file.
@@ -290,7 +290,7 @@ run_script() {
 
 # Mark a step as complete in the state file.
 complete_step() {
-	local step_number=${1:-$CURRENT_STEP}
+	local step_number=${1:-$STEP_INDEX}
 	update_state_file --argjson step "$step_number" '.step = $step'
 	COMPLETED_STEP=$step_number
 }
@@ -300,16 +300,16 @@ run_step() {
 	local description=$1
 	shift
 	init_state
+	STEP_INDEX=$((STEP_INDEX + 1))
+	local step_number=$STEP_INDEX
 
-	CURRENT_STEP=$((CURRENT_STEP + 1))
-
-	if ((COMPLETED_STEP >= CURRENT_STEP)); then
-		log_info "Step $CURRENT_STEP ($description) already completed; skipping"
+	if ((step_number <= COMPLETED_STEP)); then
+		log_info "Step $step_number ($description) already completed; skipping"
 		return
 	fi
-	log_info "Step $CURRENT_STEP ($description)"
+	log_info "Step $step_number ($description)"
 	"$@"
-	complete_step "$CURRENT_STEP"
+	complete_step "$step_number"
 }
 
 # Execute every script in the provided directory in sorted order.
