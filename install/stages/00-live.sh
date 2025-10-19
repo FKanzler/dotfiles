@@ -171,6 +171,9 @@ PASSWORD_HASH_ESCAPED=$(printf '%s' "$PASSWORD_HASH" | jq -Rsa)
 ENCRYPTION_KEY_ESCAPED=$(printf '%s' "$ENCRYPTION_KEY" | jq -Rsa)
 USERNAME_ESCAPED=$(printf '%s' "$USERNAME" | jq -Rsa)
 
+# Clean up any previous runs.
+rm -f "$REPO_ROOT/user_credentials.json" "$REPO_ROOT/user_configuration.json" "$REPO_ROOT/install/state.json"
+
 # Write user + encryption credentials for archinstall.
 cat <<-JSON >"$REPO_ROOT/user_credentials.json"
 	{
