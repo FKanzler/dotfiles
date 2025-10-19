@@ -86,7 +86,7 @@ ARCHINSTALL_COMPLETED=0
 
 load_saved_inputs() {
 	if [[ ! -f "$ANSWERS_FILE" ]]; then
-		return 1
+		return 0
 	fi
 
 	USERNAME=$(jq -r '.username // ""' "$ANSWERS_FILE")
