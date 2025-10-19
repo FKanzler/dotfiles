@@ -368,16 +368,19 @@ run_archinstall() {
 		--silent
 }
 
-# ask for resetting previous installation if any
-if exists_previous_state; then
-	local continue_confirmation
-	continue_confirmation=$(gum confirm --affirmative "Continue" --negative "Reset" "Previous installation state detected. Do you want to continue or reset the state and start fresh?" || abort "Installer cancelled by user.")
+confirm_continue_previous() {
+	if exists_previous_state; then
+		local continue_confirmation
+		continue_confirmation=$(gum confirm --affirmative "Continue" --negative "Reset" "Previous installation state detected. Do you want to continue or reset the state and start fresh?" || abort "Installer cancelled by user.")
 
-	if [[ "$continue_confirmation" == "false" ]]; then
-		reset_state_file
-		log_info "Previous installation state reset."
+		if [[ "$continue_confirmation" == "false" ]]; then
+			reset_state_file
+			log_info "Previous installation state reset."
+		fi
 	fi
-fi
+}
+
+confirm_continue_previous
 
 run_step "Collecting user input" collect_values
 run_step "Generating configuration files" generate_config_files
