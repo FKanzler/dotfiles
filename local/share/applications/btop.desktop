@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=System Monitor (btop)
+Comment=Inspect CPU, memory, disk and networking load
+Exec=btop
+Terminal=true
+Icon=utilities-system-monitor
+Categories=System;Monitor;
+Keywords=monitor;resources;cpu;memory;network;

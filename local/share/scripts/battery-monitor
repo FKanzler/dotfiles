@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Notify the user when the battery drops below the configured threshold.
+# The script caches whether an alert has already been sent to avoid spamming.
+
+BATTERY_THRESHOLD=${BATTERY_THRESHOLD:-10}
+STATE_FLAG="/run/user/$UID/battery_monitor_notified"
+
+detect_battery() {
+	upower -e | grep 'BAT' | head -n1
+}
+
+DEVICE=$(detect_battery)
+[[ -n "$DEVICE" ]] || exit 0
+
+get_percentage() {
+	upower -i "$DEVICE" |
+		awk -F: '/percentage/ { gsub(/[%[:space:]]/, "", $2); print int($2 + 0.5); exit }'
+}
+
+get_state() {
+	upower -i "$DEVICE" | awk -F: '/state/ { gsub(/[[:space:]]/, "", $2); print $2; exit }'
+}
+
+level=$(get_percentage)
+state=$(get_state)
+
+if [[ "$state" == "discharging" && "$level" -le "$BATTERY_THRESHOLD" ]]; then
+	if [[ ! -f "$STATE_FLAG" ]]; then
+		notify-send -u critical "󱐋  Battery low" "Charge soon — $level% remaining." -i battery-caution -t 30000
+		touch "$STATE_FLAG"
+	fi
+else
+	rm -f "$STATE_FLAG"
+fi

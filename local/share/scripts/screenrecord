@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Toggle screen recording. When idle it captures a region or output using wl-screenrec/wf-recorder.
+# Re-running the script stops the active recording and notifies the user where the file was saved.
+
+[[ -f "$HOME/.config/user-dirs.dirs" ]] && source "$HOME/.config/user-dirs.dirs"
+OUTPUT_DIR="${SCREENRECORD_DIR:-${XDG_VIDEOS_DIR:-$HOME/Videos}}"
+SCOPE=${1:-region}
+AUDIO_FLAG=${2:-}
+
+if [[ ! -d "$OUTPUT_DIR" ]]; then
+	notify-send -u critical "Screen recording failed" "Missing output directory: $OUTPUT_DIR" -t 3000
+	exit 1
+fi
+
+audio_args=()
+[[ "$AUDIO_FLAG" == "audio" ]] && audio_args+=(--audio)
+
+indicator_tick() {
+	pkill -RTMIN+8 waybar >/dev/null 2>&1 || true
+}
+
+recording_active() {
+	pgrep -x wl-screenrec >/dev/null || pgrep -x wf-recorder >/dev/null
+}
+
+stop_recording() {
+	pkill -x wl-screenrec >/dev/null 2>&1 || true
+	pkill -x wf-recorder >/dev/null 2>&1 || true
+	notify-send "Screen recording saved to $OUTPUT_DIR" -t 2000
+	sleep 0.2
+	indicator_tick
+}
+
+start_recording() {
+	local geometry=$1
+	local filename="$OUTPUT_DIR/screenrecording-$(date +'%Y-%m-%d_%H-%M-%S').mp4"
+
+	if lspci | grep -qi 'nvidia'; then
+		wf-recorder "${audio_args[@]}" -g "$geometry" -f "$filename" -c libx264 -p crf=23 -p preset=medium -p movflags=+faststart &
+	else
+		wl-screenrec "${audio_args[@]}" -g "$geometry" -f "$filename" \
+			--ffmpeg-encoder-options="-c:v libx264 -crf 23 -preset medium -movflags +faststart" &
+	fi
+
+	indicator_tick
+}
+
+if recording_active; then
+	stop_recording
+	exit 0
+fi
+
+case "$SCOPE" in
+	output)
+		selection=$(slurp -o) || exit 1
+		;;
+	*)
+		selection=$(slurp) || exit 1
+		;;
+esac
+
+start_recording "$selection"

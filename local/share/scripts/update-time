@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Force a clock sync, refresh the timezone, and let the desktop widgets know.
+
+notify-send "  Updating time…" "Syncing system clock and timezone."
+sudo systemctl restart systemd-timesyncd.service
+sudo tzupdate
+
+tz=$(timedatectl show -p Timezone --value)
+pkill -RTMIN+5 waybar >/dev/null 2>&1 || true
+notify-send "  Time updated" "Timezone set to ${tz}."

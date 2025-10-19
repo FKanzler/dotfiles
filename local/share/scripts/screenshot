@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Capture a screenshot, send it through Satty for quick edits, and copy it to the clipboard.
+# Supports optional mode argument (region, output, window) and honours XDG user dirs.
+
+[[ -f "$HOME/.config/user-dirs.dirs" ]] && source "$HOME/.config/user-dirs.dirs"
+OUTPUT_DIR="${SCREENSHOT_DIR:-${XDG_PICTURES_DIR:-$HOME/Pictures}}"
+MODE=${1:-region}
+
+if [[ ! -d "$OUTPUT_DIR" ]]; then
+	notify-send -u critical "Screenshot failed" "Missing output directory: $OUTPUT_DIR" -t 3000
+	exit 1
+fi
+
+pkill slurp >/dev/null 2>&1 || true
+hyprshot -m "$MODE" --raw |
+	satty --filename - \
+		--output-filename "$OUTPUT_DIR/screenshot-$(date +'%Y-%m-%d_%H-%M-%S').png" \
+		--early-exit \
+		--actions-on-enter save-to-clipboard \
+		--save-after-copy \
+		--copy-command 'wl-copy'

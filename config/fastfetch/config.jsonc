@@ -1,0 +1,20 @@
+{
+  "modules": [
+    "title",
+    "separator",
+    { "type": "host" },
+    { "type": "cpu", "key": "CPU" },
+    { "type": "gpu", "key": "GPU" },
+    { "type": "memory", "key": "Memory" },
+    { "type": "disk", "key": "Disk" },
+    "separator",
+    { "type": "os", "key": "OS" },
+    { "type": "kernel", "key": "Kernel" },
+    { "type": "wm", "key": "WM" },
+    { "type": "terminal", "key": "Terminal" },
+    { "type": "packages", "key": "Packages" },
+    "separator",
+    { "type": "uptime", "key": "Uptime" }
+  ]
+}
+

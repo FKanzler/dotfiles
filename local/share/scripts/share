@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Send clipboard data or selected files/folders to other devices via LocalSend.
+# Supports clipboard, file, and folder modes and works on repeated invocations.
+
+if (($# == 0)); then
+	echo "Usage: share [clipboard|file|folder] [paths...]" >&2
+	exit 1
+fi
+
+mode=$1
+shift
+
+collect_paths() {
+	local selector=$1
+	local find_type=$2
+
+	find "$HOME" -type "$find_type" 2>/dev/null | fzf --multi --prompt="$selector> "
+}
+
+case "$mode" in
+clipboard)
+	tmp=$(mktemp --suffix=.txt)
+	trap 'rm -f "$tmp"' EXIT
+	wl-paste >"$tmp"
+	targets=("$tmp")
+	;;
+file)
+	if (($#)); then
+		targets=("$@")
+	else
+		mapfile -t targets < <(collect_paths "files" f)
+	fi
+	;;
+folder|directory)
+	if (($#)); then
+		targets=("$@")
+	else
+		mapfile -t targets < <(collect_paths "folders" d)
+	fi
+	;;
+*)
+	echo "Unknown mode: $mode" >&2
+	exit 1
+	;;
+esac
+
+[[ ${#targets[@]} -gt 0 ]] || exit 0
+
+systemd-run --user --quiet --collect localsend --headless send "${targets[@]}"

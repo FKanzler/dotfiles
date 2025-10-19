@@ -1,0 +1,8 @@
+# Changes require a relaunch of Hyprland to take effect.
+
+# Ensure script bins are in the path
+export SCRIPTS_PATH=$HOME/.local/share/scripts
+export PATH=$SCRIPTS_PATH/bin/:$PATH
+
+# Set default terminal and editor
+source ~/.config/uwsm/default
