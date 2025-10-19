@@ -12,6 +12,7 @@ STATE_FILE="$REPO_ROOT/install/state.json"
 STAGES_DIR="$REPO_ROOT/install/stages"
 TARGET_ROOT=${TARGET_ROOT:-/mnt}
 BOOTSTRAP_DIR="$TARGET_ROOT/root/arch-bootstrap"
+CACHE_DIR=${ARCH_BOOTSTRAP_CACHE_DIR:-/var/tmp/arch-bootstrap}
 
 # Ensure the base tools exist before any heavy lifting.
 require_commands pacman
@@ -95,5 +96,6 @@ fi
 
 # Remove sensitive files that are no longer needed.
 rm -f "$STATE_FILE" "$REPO_ROOT/user_credentials.json" "$REPO_ROOT/user_configuration.json"
+rm -rf "$CACHE_DIR"
 
 log_info "Installation stages completed. You can reboot into the new system when ready."

@@ -69,7 +69,7 @@ cleanup_previous_install() {
 }
 
 # Simple cache so repeated runs can reuse previous answers.
-CACHE_DIR="$REPO_ROOT/install/cache"
+CACHE_DIR=${ARCH_BOOTSTRAP_CACHE_DIR:-/var/tmp/arch-bootstrap}
 ANSWERS_FILE="$CACHE_DIR/user_inputs.json"
 ensure_directory "$CACHE_DIR"
 
