@@ -216,6 +216,7 @@ if [[ -f "$ANSWERS_FILE" ]]; then
 fi
 
 if ((USE_SAVED_INPUTS == 0)); then
+	log_info "Collecting new installation inputs"
 	USERNAME=$(collect_input "Username" "Username" '^[a-z_][a-z0-9_-]*[$]?$')
 
 	while true; do
@@ -262,6 +263,7 @@ if ((USE_SAVED_INPUTS == 0)); then
 	ARCHINSTALL_COMPLETED=0
 	persist_inputs
 else
+	log_info "Using saved answers from $ANSWERS_FILE"
 	if [[ -z "$USERNAME" || -z "$PASSWORD_HASH" || -z "$ENCRYPTION_KEY" || -z "$HOSTNAME" || -z "$SELECTED_DISK" ]]; then
 		abort "Saved answers are incomplete. Please enter new values."
 	fi
@@ -274,6 +276,7 @@ fi
 if ((RUN_ARCHINSTALL == 0)); then
 	log_info "Skipping archinstall; using the existing installation."
 else
+	log_info "Running archinstall with fresh inputs"
 	cleanup_previous_install "$SELECTED_DISK"
 
 	DISK_SIZE=$(lsblk -bdno SIZE "$SELECTED_DISK")
