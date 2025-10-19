@@ -139,20 +139,20 @@ select_disk() {
 	local options=""
 	while IFS= read -r device; do
 		[[ -z "$device" ]] && continue
-		local size model line
-		size=$(lsblk -dno SIZE "$device" 2>/dev/null)
+		local size_bytes model line size_human
+		size_bytes=$(lsblk -bdno SIZE "$device" 2>/dev/null)
 		model=$(lsblk -dno MODEL "$device" 2>/dev/null | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
 		line="$device"
 		# Show size without decimal places for GiB and TiB
-		if [[ -n "$size" ]]; then
+		if [[ -n "$size_bytes" ]]; then
 			# check if size greater than or equal to 12 GiB
-			if (($(numfmt --from=iec "$size") < 12884901888)); then
+			if ((size_bytes < 12884901888)); then
 				continue
 			fi
 
 			# Convert size to human-readable format between GiB and TiB
-			size=$(numfmt --to=iec --format="%.1f" "$size")
-			line="$line ($size)"
+			size_human=$(numfmt --to=iec --format="%.1f" "$size_bytes")
+			line="$line ($size_human)"
 		else
 			continue
 		fi
