@@ -8,6 +8,15 @@ readonly _ARCH_BOOTSTRAP_COMMON_SOURCED=1
 
 CACHE_DIR=${ARCH_BOOTSTRAP_CACHE_DIR:-/var/tmp/arch-bootstrap}
 STATE_FILE=${STATE_FILE:-${ARCH_BOOTSTRAP_STATE_FILE:-$CACHE_DIR/state.json}}
+LOG_FILE=${ARCH_BOOTSTRAP_LOG_FILE:-$CACHE_DIR/install.log}
+
+if [[ -n "$LOG_FILE" ]]; then
+	mkdir -p "$(dirname "$LOG_FILE")"
+	if [[ ! -f "$LOG_FILE" ]]; then
+		touch "$LOG_FILE"
+	fi
+	printf '\n%s [INFO] ==== Installer run started (pid=%s) ====\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$$" >>"$LOG_FILE"
+fi
 
 INIT_STATE=0
 
@@ -24,24 +33,40 @@ COLOR_INFO=$'\033[1;34m'
 COLOR_WARN=$'\033[1;33m'
 COLOR_ERROR=$'\033[1;31m'
 
+_log_to_file() {
+	local level=$1
+	shift
+	local message="$*"
+	if [[ -n "$LOG_FILE" ]]; then
+		printf '%s [%s] %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$level" "$message" >>"$LOG_FILE"
+	fi
+}
+
 # Emit an informational message.
 log_info() {
+	_log_to_file "INFO" "$*"
 	printf '%s[INFO]%s %s\n' "$COLOR_INFO" "$COLOR_RESET" "$*"
 }
 
 # Emit a warning message.
 log_warn() {
+	_log_to_file "WARN" "$*"
 	printf '%s[WARN]%s %s\n' "$COLOR_WARN" "$COLOR_RESET" "$*" >&2
 }
 
 # Emit an error message.
 log_error() {
+	_log_to_file "ERROR" "$*"
 	printf '%s[ERR ]%s %s\n' "$COLOR_ERROR" "$COLOR_RESET" "$*" >&2
 }
 
 # Stop execution with an error.
 abort() {
 	log_error "$*"
+	if [[ -n "$LOG_FILE" ]]; then
+		_log_to_file "ERROR" "Log available at $LOG_FILE"
+		printf '%s[ERR ]%s Log available at %s\n' "$COLOR_ERROR" "$COLOR_RESET" "$LOG_FILE" >&2
+	fi
 	exit 1
 }
 
