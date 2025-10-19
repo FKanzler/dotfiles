@@ -204,7 +204,7 @@ generate_config_files() {
 	local disk=$(get_state_value "disk")
 	local username=$(get_state_value "username")
 	local hostname=$(get_state_value "hostname")
-	local password_hash=$(get_state_value "user_password_hash")
+	local user_password_hash=$(get_state_value "user_password_hash")
 	local root_password_hash=$(get_state_value "root_password_hash")
 	local encryption_key=$(get_state_value "encryption_password")
 	local config_repo_url=$(get_state_value "config_repo")
@@ -227,7 +227,8 @@ generate_config_files() {
 		kernel_package="linux-t2"
 	fi
 
-	local password_hash_escaped=$(printf '%s' "$password_hash" | jq -Rsa)
+	local user_password_hash_escaped=$(printf '%s' "$user_password_hash" | jq -Rsa)
+	local root_password_hash_escaped=$(printf '%s' "$root_password_hash" | jq -Rsa)
 	local encryption_key_escaped=$(printf '%s' "$encryption_key" | jq -Rsa)
 	local username_escaped=$(printf '%s' "$username" | jq -Rsa)
 
@@ -238,10 +239,10 @@ generate_config_files() {
 	cat <<-JSON >"$CACHE_DIR/user_credentials.json"
 		{
 		    "encryption_password": $encryption_key_escaped,
-		    "root_enc_password": $password_hash_escaped,
+		    "root_enc_password": $root_password_hash_escaped,
 		    "users": [
 		        {
-		            "enc_password": $password_hash_escaped,
+		            "enc_password": $user_password_hash_escaped,
 		            "groups": [],
 		            "sudo": true,
 		            "username": $username_escaped
