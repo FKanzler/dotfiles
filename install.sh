@@ -5,10 +5,11 @@ set -euo pipefail
 # Locate the repository root and source shared helpers.
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$SCRIPT_DIR
+STATE_FILE="$REPO_ROOT/install/state.json"
+export ARCH_BOOTSTRAP_STATE_FILE="$STATE_FILE"
 source "$REPO_ROOT/install/lib/common.sh"
 
 # Paths reused across the staged installer.
-STATE_FILE="$REPO_ROOT/install/state.json"
 STAGES_DIR="$REPO_ROOT/install/stages"
 TARGET_ROOT=${TARGET_ROOT:-/mnt}
 BOOTSTRAP_DIR="$TARGET_ROOT/root/arch-bootstrap"
@@ -22,10 +23,8 @@ require_commands pacman gum:gum tar:tar
 clear
 gum style --bold --border double --padding "1 2" --margin "1 0" "ARCH INSTALLER"
 
-# Wrapper that validates a stage before executing it.
-
 # Stage 00 prepares disks, runs archinstall, and writes state.
-run_stage_script "$STAGES_DIR/00-live.sh"
+run_stage "$STAGES_DIR/00-live.sh"
 
 if [[ ! -f "$STATE_FILE" ]]; then
 	abort "Installer state file missing after live stage: $STATE_FILE"
@@ -56,12 +55,12 @@ arch_chroot() {
 }
 
 # Stage 10 runs privileged tasks, stage 20 runs as the target user.
-arch_chroot "$TARGET_ROOT" "bash /root/arch-bootstrap/install/stages/10-chroot-root.sh /root/arch-bootstrap/install/state.json"
-arch_chroot "$TARGET_ROOT" "runuser -u $USERNAME -- /bin/bash -lc 'bash /root/arch-bootstrap/install/stages/20-chroot-user.sh /root/arch-bootstrap/install/state.json'"
+arch_chroot "$TARGET_ROOT" "ARCH_BOOTSTRAP_STATE_FILE=/root/arch-bootstrap/install/state.json bash /root/arch-bootstrap/install/stages/10-chroot-root.sh /root/arch-bootstrap/install/state.json"
+arch_chroot "$TARGET_ROOT" "runuser -u $USERNAME -- /bin/bash -lc 'ARCH_BOOTSTRAP_STATE_FILE=/root/arch-bootstrap/install/state.json bash /root/arch-bootstrap/install/stages/20-chroot-user.sh /root/arch-bootstrap/install/state.json'"
 
 # Optional polish can happen in a final stage.
 if [[ -f "$STAGES_DIR/30-finalize.sh" ]]; then
-	arch_chroot "$TARGET_ROOT" "bash /root/arch-bootstrap/install/stages/30-finalize.sh /root/arch-bootstrap/install/state.json"
+	arch_chroot "$TARGET_ROOT" "ARCH_BOOTSTRAP_STATE_FILE=/root/arch-bootstrap/install/state.json bash /root/arch-bootstrap/install/stages/30-finalize.sh /root/arch-bootstrap/install/state.json"
 fi
 
 # Remove sensitive files that are no longer needed.

@@ -7,7 +7,7 @@ fi
 readonly _ARCH_BOOTSTRAP_COMMON_SOURCED=1
 
 CACHE_DIR=${ARCH_BOOTSTRAP_CACHE_DIR:-/var/tmp/arch-bootstrap}
-STATE_FILE=${ARCH_BOOTSTRAP_STATE_FILE:-$CACHE_DIR/state.json}
+STATE_FILE=${STATE_FILE:-${ARCH_BOOTSTRAP_STATE_FILE:-$CACHE_DIR/state.json}}
 
 INIT_STATE=0
 
@@ -16,6 +16,7 @@ STATE_VALUES=()
 COMPLETED_STAGES=()
 COMPLETED_SCRIPTS=()
 COMPLETED_STEP=0
+CURRENT_STEP=0
 
 # ANSI color helpers for readable log lines.
 COLOR_RESET=$'\033[0m'
@@ -73,8 +74,8 @@ require_commands() {
 
 	((${#missing_cmds[@]} == 0 && ${#install_pkgs[@]} == 0)) && return 0
 
-	if ((${#install_pkgs[@]} > 0)) && command -v "pacman" >/dev/null 2>&1; then
-		pacman -Syu --noconfirm --needed "${install_pkgs[@]}"
+	if ((${#install_pkgs[@]} > 0)) && command -v pacman >/dev/null 2>&1; then
+		pacman -Syu --noconfirm --needed "${install_pkgs[@]}" || abort "Failed to install required packages: ${install_pkgs[*]}"
 
 		local -a still_missing_after_install=()
 		for i in "${!install_cmds[@]}"; do
@@ -94,18 +95,6 @@ require_commands() {
 
 	return 0
 }
-require_commands() {
-	local missing=0
-
-	for cmd in "$@"; do
-		if ! command -v "$cmd" >/dev/null 2>&1; then
-			log_error "Missing required command: $cmd"
-			missing=1
-		fi
-	done
-
-	((missing == 0)) || abort "Aborting because required commands are missing."
-}
 
 # Create a directory if it does not already exist.
 ensure_directory() {
@@ -123,6 +112,35 @@ ensure_symlink() {
 		rm -rf "$link"
 	fi
 	ln -snf "$target" "$link"
+}
+
+# Ensure the state file exists with the expected schema.
+ensure_state_file() {
+	ensure_directory "$CACHE_DIR"
+
+	if [[ ! -f "$STATE_FILE" ]]; then
+		cat <<'JSON' >"$STATE_FILE"
+{
+  "stages": [],
+  "scripts": [],
+  "step": 0,
+  "values": {}
+}
+JSON
+	fi
+}
+
+# Run a jq mutation against the state file and replace it atomically.
+update_state_file() {
+	local tmp
+	tmp=$(mktemp) || abort "Unable to create temporary file for state update."
+
+	if ! jq "$@" "$STATE_FILE" >"$tmp"; then
+		rm -f "$tmp"
+		abort "Failed to update state file: $STATE_FILE"
+	fi
+
+	mv "$tmp" "$STATE_FILE"
 }
 
 # Query a JSON file using jq and return the raw value.
@@ -145,12 +163,13 @@ init_state() {
 		return
 	fi
 
-	ensure_directory "$CACHE_DIR"
+	ensure_state_file
 
-	STATE_VALUES=$(jq -r '.values | to_entries[] | "\(.key)=\(.value)"' "$STATE_FILE" 2>/dev/null || echo "")
-	COMPLETED_STAGES=$(jq -r '.stages // [] | .[]' "$STATE_FILE")
-	COMPLETED_SCRIPTS=$(jq -r '.scripts // [] | .[]' "$STATE_FILE")
-	COMPLETED_STEP=$(jq '.step // 0' "$STATE_FILE")
+	mapfile -t STATE_VALUES < <(jq -r '.values // {} | to_entries[] | "\(.key)=\(.value)"' "$STATE_FILE")
+	mapfile -t COMPLETED_STAGES < <(jq -r '.stages // [] | .[]' "$STATE_FILE")
+	mapfile -t COMPLETED_SCRIPTS < <(jq -r '.scripts // [] | .[]' "$STATE_FILE")
+	COMPLETED_STEP=$(jq -r '.step // 0' "$STATE_FILE")
+	CURRENT_STEP=0
 
 	INIT_STATE=1
 }
@@ -160,8 +179,18 @@ set_state_value() {
 	local key=$1
 	local value=$2
 	init_state
-	STATE_VALUES+=("$key=$value")
-	jq --arg key "$key" --arg value "$value" '.values[$key] = $value' "$STATE_FILE"
+	local -a updated=()
+	for entry in "${STATE_VALUES[@]}"; do
+		local entry_key=${entry%%=*}
+		if [[ "$entry_key" != "$key" ]]; then
+			updated+=("$entry")
+		fi
+	done
+	updated+=("$key=$value")
+	STATE_VALUES=("${updated[@]}")
+	update_state_file --arg key "$key" --arg value "$value" '
+		.values = (.values // {} | .[$key] = $value)
+		| setpath(($key | split(".")); $value)'
 }
 
 # Retrieve a value from the state file, returning a default if not present.
@@ -184,19 +213,23 @@ get_state_value() {
 complete_stage() {
 	local stage=$1
 	init_state
-	COMPLETED_STAGES+=("$stage")
-	jq --arg stage "$stage" '.stages += [$stage]' "$STATE_FILE"
+	if ! is_stage_completed "$stage"; then
+		COMPLETED_STAGES+=("$stage")
+	fi
+	update_state_file --arg stage "$stage" '
+		.stages = (.stages // [] | if index($stage) == null then . + [$stage] else . end)'
 }
 
 # Check if a stage is marked complete in the state file.
 is_stage_completed() {
 	local stage=$1
 	init_state
-	if [[ " ${COMPLETED_STAGES[@]} " =~ " $stage " ]]; then
-		return 0
-	else
-		return 1
-	fi
+	for entry in "${COMPLETED_STAGES[@]}"; do
+		if [[ "$entry" == "$stage" ]]; then
+			return 0
+		fi
+	done
+	return 1
 }
 
 # Run a stage if it hasn't been completed.
@@ -210,7 +243,7 @@ run_stage() {
 		abort "Missing stage script: $stage_script"
 	fi
 	log_info "Executing stage $(basename "$stage_script")"
-	bash "$stage_script" "$STATE_FILE"
+	ARCH_BOOTSTRAP_STATE_FILE="$STATE_FILE" bash "$stage_script" "$STATE_FILE"
 	complete_stage "$(basename "$stage_script")"
 }
 
@@ -218,19 +251,26 @@ run_stage() {
 complete_script() {
 	local script=$1
 	init_state
-	COMPLETED_SCRIPTS+=("$script")
-	jq --arg script "$script" '.scripts += [$script] .step = 0' "$STATE_FILE"
+	if ! is_script_completed "$script"; then
+		COMPLETED_SCRIPTS+=("$script")
+	fi
+	update_state_file --arg script "$script" '
+		.scripts = (.scripts // [] | if index($script) == null then . + [$script] else . end)
+		| .step = 0'
+	COMPLETED_STEP=0
+	CURRENT_STEP=0
 }
 
 # Check if a script is marked complete in the state file.
 is_script_completed() {
 	local script=$1
 	init_state
-	if [[ " ${COMPLETED_SCRIPTS[@]} " =~ " $script " ]]; then
-		return 0
-	else
-		return 1
-	fi
+	for entry in "${COMPLETED_SCRIPTS[@]}"; do
+		if [[ "$entry" == "$script" ]]; then
+			return 0
+		fi
+	done
+	return 1
 }
 
 # Run a script if it hasn't been completed.
@@ -244,38 +284,32 @@ run_script() {
 		abort "Missing script: $script"
 	fi
 	log_info "Executing script $(basename "$script")"
-	bash "$script" "$STATE_FILE"
+	ARCH_BOOTSTRAP_STATE_FILE="$STATE_FILE" bash "$script" "$STATE_FILE"
 	complete_script "$(basename "$script")"
 }
 
 # Mark a step as complete in the state file.
 complete_step() {
-	jq --arg step "$CURRENT_STEP" '.step = ($step | tonumber)' "$STATE_FILE"
-	COMPLETED_STEP=$((COMPLETED_STEP + 1))
-}
-
-is_step_completed() {
-	local description=$1
-	if ((COMPLETED_STEP >= CURRENT_STEP)); then
-		log_info "Step $CURRENT_STEP ($description) already completed; skipping"
-		return 0
-	else
-		log_info "Executing step $CURRENT_STEP ($description)"
-		return 1
-	fi
+	local step_number=${1:-$CURRENT_STEP}
+	update_state_file --argjson step "$step_number" '.step = $step'
+	COMPLETED_STEP=$step_number
 }
 
 # Log the action about to run and execute it.
 run_step() {
 	local description=$1
 	shift
-	if is_step_completed; then
-		log_info "Skipping $description"
+	init_state
+
+	CURRENT_STEP=$((CURRENT_STEP + 1))
+
+	if ((COMPLETED_STEP >= CURRENT_STEP)); then
+		log_info "Step $CURRENT_STEP ($description) already completed; skipping"
 		return
 	fi
-	log_info "$description"
+	log_info "Step $CURRENT_STEP ($description)"
 	"$@"
-	complete_step
+	complete_step "$CURRENT_STEP"
 }
 
 # Execute every script in the provided directory in sorted order.

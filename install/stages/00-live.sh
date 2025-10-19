@@ -56,28 +56,29 @@ cleanup_previous_install() {
 collect_input() {
 	local prompt=$1
 	local placeholder=$2
-	local confirmation=$3
-	local validator=$4
+	local require_confirmation=${3:-0}
+	local validator=${4:-}
 	local value
 	local confirm_value
 
 	while true; do
 		value=$(gum input --prompt "$prompt: " --placeholder "$placeholder" || abort "Installer cancelled by user.")
 
-		if [[ -n "$confirmation" ]]; then
-			confirm_value=$(gum input --prompt "Confirm $placeholder: " --placeholder "$placeholder" || abort "Installer cancelled by user.")
-		fi
-
-		if [[ -n "$validator" && ! "$value" =~ $validator ]]; then
+		if [[ -n "$validator" && -n "$value" && ! "$value" =~ $validator ]]; then
 			log_warn "Input does not match required format, please try again."
-			printf '%s\n' "$value"
-			return 0
-		fi
-
-		if [[ -n "$confirmation" && "$value" != "$confirm_value" ]]; then
-			log_warn "Values do not match, please try again."
 			continue
 		fi
+
+		if ((require_confirmation)); then
+			confirm_value=$(gum input --prompt "Confirm $placeholder: " --placeholder "$placeholder" || abort "Installer cancelled by user.")
+			if [[ "$value" != "$confirm_value" ]]; then
+				log_warn "Values do not match, please try again."
+				continue
+			fi
+		fi
+
+		printf '%s\n' "$value"
+		return 0
 	done
 }
 
@@ -139,19 +140,34 @@ generate_recovery_key() {
 }
 
 collect_values() {
-	set_state_value "hostname" $(collect_input "Hostname" "Hostname" 0 '^[A-Za-z_][A-Za-z0-9_-]*$')
+	local hostname
+	hostname=$(collect_input "Hostname" "Hostname" 0 '^[A-Za-z_][A-Za-z0-9_-]*$')
+	set_state_value "hostname" "$hostname"
+	set_state_value "target_root" "$TARGET_ROOT"
 
-	local root_password=$(collect_input "Root Password" "Root Password" 1 '^.{8,}$')
-	set_state_value "rootPassword" $(openssl passwd -6 "$root_password")
+	local root_password
+	root_password=$(collect_input "Root Password" "Root Password" 1 '^.{8,}$')
+	set_state_value "root_password_hash" "$(openssl passwd -6 "$root_password")"
 
-	set_state_value "username" $(collect_input "Username" "Username" 0 '^[a-z_][a-z0-9_-]*[$]?$')
+	local username
+	username=$(collect_input "Username" "Username" 0 '^[a-z_][a-z0-9_-]*[$]?$')
+	set_state_value "username" "$username"
 
-	local password=$(collect_input "Password" "Password" 1 '^.{8,}$')
-	set_state_value "password" $(openssl passwd -6 "$password")
+	local password
+	password=$(collect_input "Password" "Password" 1 '^.{8,}$')
+	set_state_value "user_password_hash" "$(openssl passwd -6 "$password")"
 
-	set_state_value "gitName" $(collect_input "Git author name (optional)" "Git Name")
-	set_state_value "gitEmail" $(collect_input "Git author email (optional)" "Git Email" '^[^@]+@[^@]+\.[^@]+$')
-	set_state_value "configRepoUrl" $(collect_input "Config Git repository URL (optional)" "Config Repo URL")
+	local git_name
+	git_name=$(collect_input "Git author name (optional)" "Git Name" 0)
+	set_state_value "git.name" "$git_name"
+
+	local git_email
+	git_email=$(collect_input "Git author email (optional)" "Git Email" 0 '^[^@]+@[^@]+\.[^@]+$')
+	set_state_value "git.email" "$git_email"
+
+	local config_repo
+	config_repo=$(collect_input "Config Git repository URL (optional)" "Config Repo URL" 0)
+	set_state_value "config_repo" "$config_repo"
 
 	local selected_disk
 	while true; do
@@ -178,7 +194,7 @@ collect_values() {
 			break
 		fi
 	done
-	set_state_value "encryptionKey" "$encryption_key"
+	set_state_value "encryption_password" "$encryption_key"
 
 	local timezone=$(curl -s https://ipapi.co/timezone || true)
 	timezone=${timezone:-Europe/Berlin}
@@ -189,10 +205,10 @@ generate_config_files() {
 	local disk=$(get_state_value "disk")
 	local username=$(get_state_value "username")
 	local hostname=$(get_state_value "hostname")
-	local password_hash=$(get_state_value "password")
-	local root_password_hash=$(get_state_value "rootPassword")
-	local encryption_key=$(get_state_value "encryptionKey")
-	local config_repo_url=$(get_state_value "configRepoUrl")
+	local password_hash=$(get_state_value "user_password_hash")
+	local root_password_hash=$(get_state_value "root_password_hash")
+	local encryption_key=$(get_state_value "encryption_password")
+	local config_repo_url=$(get_state_value "config_repo")
 	local timezone=$(get_state_value "timezone")
 
 	cleanup_previous_install "$disk"

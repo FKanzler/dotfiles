@@ -22,7 +22,7 @@ fi
 
 log_info "Running system-level configuration inside chroot"
 
-# Execute every script under install/system.d in lexical order, passing the state file along.
-run_scripts_in_dir "$REPO_ROOT/install/system.d" "$STATE_FILE"
+# Execute every script under install/system.d in lexical order.
+run_scripts_in_dir "$REPO_ROOT/install/system.d"
 
 log_info "Completed system-level stage"

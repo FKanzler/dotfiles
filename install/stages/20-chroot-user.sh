@@ -22,8 +22,7 @@ fi
 
 log_info "Running user-level configuration"
 
-# Execute user.d scripts sequentially with the state file so each component can
-# pull values like username, hostname, and dotfile repo URL.
-run_scripts_in_dir "$REPO_ROOT/install/user.d" "$STATE_FILE"
+# Execute user.d scripts sequentially so each component can pull values from the shared state.
+run_scripts_in_dir "$REPO_ROOT/install/user.d"
 
 log_info "Completed user-level stage"
