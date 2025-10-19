@@ -85,12 +85,12 @@ arch_chroot() {
 }
 
 # Stage 10 runs privileged tasks, stage 20 runs as the target user.
-arch_chroot "$TARGET_ROOT" "/root/arch-bootstrap/install/stages/10-chroot-root.sh /root/arch-bootstrap/install/state.json"
-arch_chroot "$TARGET_ROOT" "runuser -u $USERNAME -- /bin/bash -lc '/root/arch-bootstrap/install/stages/20-chroot-user.sh /root/arch-bootstrap/install/state.json'"
+arch_chroot "$TARGET_ROOT" "bash /root/arch-bootstrap/install/stages/10-chroot-root.sh /root/arch-bootstrap/install/state.json"
+arch_chroot "$TARGET_ROOT" "runuser -u $USERNAME -- /bin/bash -lc 'bash /root/arch-bootstrap/install/stages/20-chroot-user.sh /root/arch-bootstrap/install/state.json'"
 
 # Optional polish can happen in a final stage.
 if [[ -f "$STAGES_DIR/30-finalize.sh" ]]; then
-	arch_chroot "$TARGET_ROOT" "/root/arch-bootstrap/install/stages/30-finalize.sh /root/arch-bootstrap/install/state.json"
+	arch_chroot "$TARGET_ROOT" "bash /root/arch-bootstrap/install/stages/30-finalize.sh /root/arch-bootstrap/install/state.json"
 fi
 
 # Remove sensitive files that are no longer needed.

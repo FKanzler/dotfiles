@@ -279,7 +279,7 @@ cat <<-JSON >"$REPO_ROOT/user_configuration.json"
 	    "swap": true,
 	    "timezone": "$TIMEZONE",
 	    "locale_config": {
-	        "kb_layout": "eu",
+	        "kb_layout": "us",
 	        "sys_enc": "UTF-8",
 	        "sys_lang": "en_US.UTF-8"
 	    },
