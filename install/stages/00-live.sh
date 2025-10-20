@@ -9,7 +9,6 @@ set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 source "$REPO_ROOT/install/lib/common.sh"
-ensure_directory "$CACHE_DIR"
 
 # Ensure package manager is available for lightweight helper installs.
 require_commands pacman gum:gum jq:jq sed:sed awk:gawk archinstall:archinstall curl:curl lsblk:lsblk findmnt:findmnt openssl:openssl lspci:lspci
@@ -50,78 +49,6 @@ cleanup_previous_install() {
 			cryptsetup close "$mapper" >/dev/null 2>&1 || true
 		done < <(lsblk -rpno NAME,TYPE "$disk" 2>/dev/null | awk '$2=="crypt"{print $1}')
 	fi
-}
-
-collect_input() {
-	local prompt=$1
-	local placeholder=$2
-	local require_confirmation=${3:-0}
-	local validator=${4:-}
-	local value
-	local confirm_value
-
-	while true; do
-		value=$(gum input --prompt "$prompt: " --placeholder "$placeholder")
-		local status=$?
-		case $status in
-		0) ;;
-		130)
-			abort "Installer cancelled by user."
-			;;
-		*)
-			abort "gum input failed with exit code $status"
-			;;
-		esac
-
-		if [[ -n "$validator" && -n "$value" && ! "$value" =~ $validator ]]; then
-			log_warn "Input does not match required format, please try again."
-			continue
-		fi
-
-		if ((require_confirmation)); then
-			confirm_value=$(gum input --prompt "Confirm $placeholder: " --placeholder "$placeholder")
-			status=$?
-			case $status in
-			0) ;;
-			130)
-				abort "Installer cancelled by user."
-				;;
-			*)
-				abort "gum input failed with exit code $status"
-				;;
-			esac
-			if [[ "$value" != "$confirm_value" ]]; then
-				log_warn "Values do not match, please try again."
-				continue
-			fi
-		fi
-
-		printf '%s\n' "$value"
-		return 0
-	done
-}
-
-gum_confirm_prompt() {
-	local affirmative=$1
-	local negative=$2
-	local message=$3
-
-	gum confirm --affirmative "$affirmative" --negative "$negative" "$message"
-	local status=$?
-	case $status in
-	0)
-		return 0
-		;;
-	1)
-		return 1
-		;;
-	130)
-		abort "Installer cancelled by user."
-		;;
-	*)
-		abort "gum confirm failed with exit code $status"
-		;;
-	esac
 }
 
 select_disk() {
@@ -197,32 +124,32 @@ collect_values() {
 	gum style --bold --border double --padding "1 2" --margin "1 0" "ARCH INSTALLER"
 
 	local hostname
-	hostname=$(collect_input "Hostname" "Hostname" 0 '^[A-Za-z_][A-Za-z0-9_-]*$')
+	hostname=$(input_prompt "Hostname" "Hostname" 0 '^[A-Za-z_][A-Za-z0-9_-]*$')
 	set_state_value "hostname" "$hostname"
 	set_state_value "target_root" "$TARGET_ROOT"
 
 	local root_password
-	root_password=$(collect_input "Root Password" "Root Password" 1 '^.{8,}$')
+	root_password=$(input_prompt "Root Password" "Root Password" 1 '^.{8,}$' 1)
 	set_state_value "root_password_hash" "$(openssl passwd -6 "$root_password")"
 
 	local username
-	username=$(collect_input "Username" "Username" 0 '^[a-z_][a-z0-9_-]*[$]?$')
+	username=$(input_prompt "Username" "Username" 0 '^[a-z_][a-z0-9_-]*[$]?$')
 	set_state_value "username" "$username"
 
 	local password
-	password=$(collect_input "Password" "Password" 1 '^.{8,}$')
+	password=$(input_prompt "User Password" "User Password" 1 '^.{8,}$' 1)
 	set_state_value "user_password_hash" "$(openssl passwd -6 "$password")"
 
 	local git_name
-	git_name=$(collect_input "Git author name (optional)" "Git Name" 0)
+	git_name=$(input_prompt "Git author name (optional)" "Git Name" 0)
 	set_state_value "git.name" "$git_name"
 
 	local git_email
-	git_email=$(collect_input "Git author email (optional)" "Git Email" 0 '^[^@]+@[^@]+\.[^@]+$')
+	git_email=$(input_prompt "Git author email (optional)" "Git Email" 0 '^[^@]+@[^@]+\.[^@]+$')
 	set_state_value "git.email" "$git_email"
 
 	local config_repo
-	config_repo=$(collect_input "Config Git repository URL (optional)" "Config Repo URL" 0)
+	config_repo=$(input_prompt "Config Git repository URL (optional)" "Config Repo URL" 0)
 	set_state_value "config_repo" "$config_repo"
 
 	local selected_disk
@@ -233,7 +160,7 @@ collect_values() {
 			continue
 		fi
 
-		if gum_confirm_prompt "Erase" "Choose again" "Erase all data on $selected_disk and continue?"; then
+		if confirm_prompt "Erase" "Choose again" "Erase all data on $selected_disk and continue?"; then
 			break
 		fi
 	done
@@ -244,7 +171,7 @@ collect_values() {
 		encryption_key=$(generate_recovery_key)
 		gum style --foreground=212 "Save this disk encryption recovery key somewhere safe:"
 		gum style --foreground=10 --bold --border rounded --padding "1 2" "$encryption_key"
-		if gum_confirm_prompt "Continue" "Generate new key" "Have you written down the recovery key?"; then
+		if confirm_prompt "Continue" "Generate new key" "Have you written down the recovery key?"; then
 			break
 		fi
 	done
@@ -286,10 +213,11 @@ generate_config_files() {
 	local username_escaped=$(printf '%s' "$username" | jq -Rsa)
 
 	# Clean up any previous runs.
-	rm -f "$CACHE_DIR/user_credentials.json" "$CACHE_DIR/user_configuration.json"
+	rm -f "$(cache_file_path "user_credentials.json")"
+	rm -f "$(cache_file_path "user_configuration.json")"
 
 	# Write user + encryption credentials for archinstall.
-	cat <<-JSON >"$CACHE_DIR/user_credentials.json"
+	cat <<-JSON >$(cache_file_path "user_credentials.json")
 		{
 		    "encryption_password": $encryption_key_escaped,
 		    "root_enc_password": $root_password_hash_escaped,
@@ -305,7 +233,7 @@ generate_config_files() {
 	JSON
 
 	# Render the full archinstall configuration.
-	cat <<-JSON >"$CACHE_DIR/user_configuration.json"
+	cat <<-JSON >$(cache_file_path "user_configuration.json")
 		{
 		    "app_config": null,
 		    "archinstall-language": "English",
@@ -420,8 +348,8 @@ run_archinstall() {
 	cleanup_previous_install "$disk"
 
 	archinstall \
-		--config "$CACHE_DIR/user_configuration.json" \
-		--creds "$CACHE_DIR/user_credentials.json" \
+		--config "$(cache_file_path "user_configuration.json")" \
+		--creds "$(cache_file_path "user_credentials.json")" \
 		--silent
 }
 

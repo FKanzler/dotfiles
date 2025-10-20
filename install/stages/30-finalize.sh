@@ -10,15 +10,11 @@ REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 source "$REPO_ROOT/install/lib/common.sh"
 
 remove_chroot_state() {
-	log_info "Finalizing installation - purging installer state"
 	rm -f "$STATE_FILE"
-	log_info "State file removed from chroot"
 }
 
 purge_generated_artifacts() {
-	log_info "Cleaning up cached installer artifacts"
-	rm -rf "$CACHE_DIR"
-	log_info "Cached artifacts removed"
+	rm -rf "$(cache_dir_path)"
 }
 
 run_step "Removing chroot state file" remove_chroot_state

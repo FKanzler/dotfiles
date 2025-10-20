@@ -8,8 +8,6 @@ REPO_ROOT=$SCRIPT_DIR
 
 source "$REPO_ROOT/install/lib/common.sh"
 
-ensure_directory "$CACHE_DIR"
-
 # Paths reused across the staged installer.
 STAGES_DIR="$REPO_ROOT/install/stages"
 TARGET_ROOT=${TARGET_ROOT:-/mnt}

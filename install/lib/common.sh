@@ -10,6 +10,8 @@ CACHE_DIR=${ARCH_BOOTSTRAP_CACHE_DIR:-/var/tmp/arch-bootstrap}
 STATE_FILE=${STATE_FILE:-${ARCH_BOOTSTRAP_STATE_FILE:-$CACHE_DIR/state.json}}
 LOG_FILE=${ARCH_BOOTSTRAP_LOG_FILE:-$CACHE_DIR/install.log}
 
+ensure_directory "$CACHE_DIR"
+
 if [[ -n "$LOG_FILE" ]]; then
 	mkdir -p "$(dirname "$LOG_FILE")"
 	if [[ ! -f "$LOG_FILE" ]]; then
@@ -147,7 +149,6 @@ ensure_state_file() {
 }
 
 reset_state_file() {
-	ensure_directory "$CACHE_DIR"
 	cat <<'JSON' >"$STATE_FILE"
 {
   "stages": [],
@@ -171,11 +172,101 @@ update_state_file() {
 	mv "$tmp" "$STATE_FILE"
 }
 
+# Get the full path to a cached file.
+cache_file_path() {
+	local filename=$1
+	printf '%s/%s\n' "$CACHE_DIR" "$filename"
+}
+
+# Get cache dir path
+cache_dir_path() {
+	printf '%s\n' "$CACHE_DIR"
+}
+
 # Query a JSON file using jq and return the raw value.
 json_get() {
 	local file=$1
 	local query=$2
 	jq -r "$query" "$file"
+}
+
+# Show a gum confirmation prompt and normalize exit handling.
+confirm_prompt() {
+	local affirmative=$1
+	local negative=$2
+	local message=$3
+
+	if ! command -v gum >/dev/null 2>&1; then
+		abort "gum is required for interactive prompts but is not available."
+	fi
+
+	gum confirm --affirmative "$affirmative" --negative "$negative" "$message"
+	local status=$?
+	case $status in
+	0)
+		return 0
+		;;
+	1)
+		return 1
+		;;
+	130)
+		abort "Installer cancelled by user."
+		;;
+	*)
+		abort "gum confirm failed with exit code $status"
+		;;
+	esac
+}
+
+# Show a gum input prompt and return the value.
+input_prompt() {
+	local prompt=$1
+	local placeholder=$2
+	local require_confirmation=${3:-0}
+	local validator=${4:-}
+	local password_mode=${5:-0}
+	local value
+	local confirm_value
+
+	while true; do
+		value=$(gum input --prompt "$prompt: " --placeholder "$placeholder" --password "$password_mode")
+		local status=$?
+		case $status in
+		0) ;;
+		130)
+			abort "Installer cancelled by user."
+			;;
+		*)
+			abort "gum input failed with exit code $status"
+			;;
+		esac
+
+		if [[ -n "$validator" && -n "$value" && ! "$value" =~ $validator ]]; then
+			log_warn "Input does not match required format, please try again. (Expected format: $validator)"
+			continue
+		fi
+
+		if ((require_confirmation)); then
+			confirm_value=$(gum input --prompt "Confirm $placeholder: " --placeholder "$placeholder" --password "$password_mode")
+			status=$?
+			case $status in
+			0) ;;
+			130)
+				abort "Installer cancelled by user."
+				;;
+			*)
+				abort "gum input failed with exit code $status"
+				;;
+			esac
+			if [[ "$value" != "$confirm_value" ]]; then
+				log_warn "Values do not match, please try again."
+				continue
+			fi
+		fi
+
+		printf '%s\n' "$value"
+		return 0
+	done
 }
 
 # Determine the repository root from the helper location.
