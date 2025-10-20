@@ -337,13 +337,26 @@ generate_config_files() {
 
 run_archinstall() {
 	local disk=$(get_state_value "disk")
+	local target_root=$(get_state_value "target_root" "/mnt")
+	TARGET_ROOT=${TARGET_ROOT:-$target_root}
 
 	cleanup_previous_install "$disk"
 
-	archinstall \
+	if ! archinstall \
 		--config "$(cache_file_path "user_configuration.json")" \
 		--creds "$(cache_file_path "user_credentials.json")" \
 		--silent
+	then
+		abort "Archinstall execution failed."
+	fi
+
+	if ! findmnt -rno TARGET "$TARGET_ROOT" >/dev/null 2>&1; then
+		abort "Archinstall finished without mounting target root at $TARGET_ROOT."
+	fi
+
+	if [[ ! -f "$TARGET_ROOT/etc/os-release" ]]; then
+		abort "Archinstall did not create a target system at $TARGET_ROOT; please rerun the live stage."
+	fi
 }
 
 run_step "Collecting user input" collect_values
