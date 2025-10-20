@@ -389,10 +389,6 @@ select_prompt() {
 		shift
 	done
 
-	if ! command -v gum >/dev/null 2>&1; then
-		abort "gum is required for interactive prompts but is not available."
-	fi
-
 	if ((${#options[@]} == 0)); then
 		if ((allow_empty)); then
 			printf '\n'
@@ -401,24 +397,33 @@ select_prompt() {
 		abort "No options provided for selection prompt."
 	fi
 
-	local selected
-	selected=$(printf '%s\n' "${options[@]}" | gum choose --header "$header")
-	local status=$?
-	case $status in
-	0)
-		printf '%s\n' "$selected"
-		;;
-	130)
-		abort "Installer cancelled by user."
-		;;
-	*)
-		if ((allow_empty)); then
-			printf '\n'
-			return 0
-		fi
-		abort "gum choose failed with exit code $status"
-		;;
-	esac
+	while true; do
+		local selected
+		selected=$(printf '%s\n' "${options[@]}" | gum choose --header "$header")
+		local status=$?
+		case $status in
+		0)
+			printf '%s\n' "$selected"
+			;;
+		1)
+			if ((allow_empty)); then
+				printf '\n'
+				return 0
+			fi
+			continue
+			;;
+		130)
+			abort "Installer cancelled by user."
+			;;
+		*)
+			if ((allow_empty)); then
+				printf '\n'
+				return 0
+			fi
+			abort "gum choose failed with exit code $status"
+			;;
+		esac
+	done
 }
 
 # Determine the repository root from the helper location.
