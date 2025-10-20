@@ -50,16 +50,11 @@ if [[ -z "$USERNAME" || "$USERNAME" == "null" ]]; then
 	abort "Unable to determine target username from state file."
 fi
 
-if ! findmnt -rno TARGET "$TARGET_ROOT" >/dev/null 2>&1; then
-	abort "Target root $TARGET_ROOT is not mounted. Choose Reset when prompted to rerun the live stage, or manually mount the target root before continuing."
-fi
-
 # Sync the project into the new system so the chroot stages have context.
 log_info "Copying installer repository into target system"
 rm -rf "$BOOTSTRAP_DIR"
 mkdir -p "$BOOTSTRAP_DIR"
 tar -c --exclude='.git' -C "$REPO_ROOT" . | tar -x -C "$BOOTSTRAP_DIR"
-cp "$STATE_FILE" "$BOOTSTRAP_DIR/install/state.json"
 
 # Helper for chroot execution; ARCH_CHROOT_CMD can override the default.
 arch_chroot_cmd=${ARCH_CHROOT_CMD:-arch-chroot}
