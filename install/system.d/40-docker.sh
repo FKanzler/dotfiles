@@ -9,7 +9,7 @@ REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 
 source "$REPO_ROOT/install/lib/common.sh"
 
-USERNAME=$(json_get "$STATE_FILE" '.username')
+USERNAME=$(get_state_value "username")
 DOCKER_READY=1
 
 validate_docker_environment() {

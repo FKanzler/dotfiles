@@ -9,8 +9,8 @@ REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 
 source "$REPO_ROOT/install/lib/common.sh"
 
-FULL_NAME=$(json_get "$STATE_FILE" '.git.name')
-EMAIL=$(json_get "$STATE_FILE" '.git.email')
+FULL_NAME=$(get_state_value "git.name")
+EMAIL=$(get_state_value "git.email")
 
 prepare_git_config_directory() {
 	ensure_directory "$HOME/.config/git"

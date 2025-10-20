@@ -130,7 +130,7 @@ EOF
 cryptroot UUID=$device_uuid - tpm2-device=auto
 EOF
 
-	encryption_password=$(json_get "$STATE_FILE" '.encryption_password')
+	encryption_password=$(get_state_value "encryption_password")
 	if [[ -n "$encryption_password" && "$encryption_password" != "null" ]]; then
 		if ! systemd-cryptenroll --list "$luks_device" | grep -q 'tpm2'; then
 			log_info "Enrolling TPM2 unlock for $luks_device"

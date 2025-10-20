@@ -42,9 +42,9 @@ if [[ ! -f "$STATE_FILE" ]]; then
 fi
 
 # Read values discovered during the live stage.
-TARGET_ROOT=$(json_get "$STATE_FILE" '.target_root // "/mnt"')
+TARGET_ROOT=$(get_state_value "target_root" "/mnt")
 BOOTSTRAP_DIR="$TARGET_ROOT/root/arch-bootstrap"
-USERNAME=$(json_get "$STATE_FILE" '.username')
+USERNAME=$(get_state_value "username")
 
 if [[ -z "$USERNAME" || "$USERNAME" == "null" ]]; then
 	abort "Unable to determine target username from state file."

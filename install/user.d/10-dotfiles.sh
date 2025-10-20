@@ -9,7 +9,7 @@ REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 
 source "$REPO_ROOT/install/lib/common.sh"
 
-CONFIG_REPO_URL=$(json_get "$STATE_FILE" '.config_repo // ""')
+CONFIG_REPO_URL=$(get_state_value "config_repo" "")
 DEFAULT_CONFIG_REPO="https://github.com/FKanzler/dotfiles.git"
 CLONE_ROOT="$HOME/.local/share/system-config"
 SOURCE_ROOT="$REPO_ROOT"
