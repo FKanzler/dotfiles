@@ -10,6 +10,14 @@ CACHE_DIR=${ARCH_BOOTSTRAP_CACHE_DIR:-/var/tmp/arch-bootstrap}
 STATE_FILE=${STATE_FILE:-${ARCH_BOOTSTRAP_STATE_FILE:-$CACHE_DIR/state.json}}
 LOG_FILE=${ARCH_BOOTSTRAP_LOG_FILE:-$CACHE_DIR/install.log}
 
+# Create a directory if it does not already exist.
+ensure_directory() {
+	local dir=$1
+	if [[ ! -d "$dir" ]]; then
+		mkdir -p "$dir"
+	fi
+}
+
 ensure_directory "$CACHE_DIR"
 
 if [[ -n "$LOG_FILE" ]]; then
@@ -121,14 +129,6 @@ require_commands() {
 	fi
 
 	return 0
-}
-
-# Create a directory if it does not already exist.
-ensure_directory() {
-	local dir=$1
-	if [[ ! -d "$dir" ]]; then
-		mkdir -p "$dir"
-	fi
 }
 
 # Create or update a symlink, overwriting existing files.
