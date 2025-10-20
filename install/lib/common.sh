@@ -159,26 +159,6 @@ reset_state_file() {
 JSON
 }
 
-normalize_state_values() {
-	update_state_file '
-		def entries: (.values // {}) | to_entries;
-		def build($entries):
-			reduce $entries as $entry
-				({}; setpath(($entry.key | split(".")); $entry.value));
-		entries as $entries
-		| .values = build($entries)
-		| reduce ($entries | map(.key | split(".")))[] as $path (.;
-			delpaths([$path])
-		)
-		| with_entries(
-			if .key == "values" then .
-			else if (.value | type == "object" and (.value | length) == 0) then empty
-			else .
-			end
-		)
-	'
-}
-
 # Run a jq mutation against the state file and replace it atomically.
 update_state_file() {
 	local tmp
@@ -544,17 +524,12 @@ init_state() {
 	fi
 
 	ensure_state_file
-	normalize_state_values
 
 	mapfile -t STATE_VALUES < <(jq -r '
-		def flatten($path):
-			to_entries[] |
-				if (.value | type) == "object" then
-					(.value | flatten($path + [ .key ]))
-				else
-					"\(($path + [ .key ]) | join("."))=\(.value)"
-				end;
-		(.values // {} | flatten([]))
+	(.values // {}) as $v
+	| $v
+	| paths(scalars) as $p
+	| "\($p | join("."))=\($v | getpath($p))"
 	' "$STATE_FILE")
 	mapfile -t COMPLETED_STAGES < <(jq -r '.stages // [] | .[]' "$STATE_FILE")
 	mapfile -t COMPLETED_SCRIPTS < <(jq -r '.scripts // [] | .[]' "$STATE_FILE")
@@ -579,9 +554,9 @@ set_state_value() {
 	updated+=("$key=$value")
 	STATE_VALUES=("${updated[@]}")
 	update_state_file --arg key "$key" --arg value "$value" '
-		(.values = (.values // {} | delpaths([[$key]])))
-		| delpaths([($key | split("."))])
-		| setpath(["values"] + ($key | split(".")); $value)'
+	.values //= {} |
+	setpath(["values"] + ($key | split(".")); $value)
+	'
 }
 
 # Retrieve a value from the state file, returning a default if not present.
