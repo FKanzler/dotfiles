@@ -50,6 +50,10 @@ if [[ -z "$USERNAME" || "$USERNAME" == "null" ]]; then
 	abort "Unable to determine target username from state file."
 fi
 
+if ! findmnt -rno TARGET "$TARGET_ROOT" >/dev/null 2>&1; then
+	abort "Target root $TARGET_ROOT is not mounted. Choose Reset when prompted to rerun the live stage, or manually mount the target root before continuing."
+fi
+
 # Sync the project into the new system so the chroot stages have context.
 log_info "Copying installer repository into target system"
 rm -rf "$BOOTSTRAP_DIR"
