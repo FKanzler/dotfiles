@@ -63,7 +63,7 @@ select_disk() {
 			{ if [[ -n "$exclude_disk" ]]; then grep -Fvx "$exclude_disk"; else cat; fi; }
 	)
 
-	local options=""
+	local -a options=()
 	while IFS= read -r device; do
 		[[ -z "$device" ]] && continue
 		local size_bytes model line size_human
@@ -85,23 +85,16 @@ select_disk() {
 		fi
 
 		[[ -n "$model" ]] && line="$line - $model"
-		options+="$line"$'\n'
+		options+=("$line")
 	done <<<"$disks"
 
+	if ((${#options[@]} == 0)); then
+		abort "No suitable installation disks found."
+	fi
+
 	local selected
-	selected=$(echo "$options" | gum choose --header "Select installation disk")
-	local status=$?
-	case $status in
-	0)
-		echo "$selected" | awk '{print $1}'
-		;;
-	130)
-		abort "Installer cancelled by user."
-		;;
-	*)
-		abort "gum choose failed with exit code $status"
-		;;
-	esac
+	selected=$(select_prompt --header "Select installation disk" -- "${options[@]}")
+	echo "$selected" | awk '{print $1}'
 }
 
 generate_recovery_key() {
@@ -124,32 +117,32 @@ collect_values() {
 	gum style --bold --border double --padding "1 2" --margin "1 0" "ARCH INSTALLER"
 
 	local hostname
-	hostname=$(input_prompt "Hostname" "Hostname" 0 '^[A-Za-z_][A-Za-z0-9_-]*$')
+	hostname=$(input_prompt --prompt "Hostname" --placeholder "Hostname" --validator '^[A-Za-z_][A-Za-z0-9_-]*$')
 	set_state_value "hostname" "$hostname"
 	set_state_value "target_root" "$TARGET_ROOT"
 
 	local root_password
-	root_password=$(input_prompt "Root Password" "Root Password" 1 '^.{8,}$' 1)
+	root_password=$(input_prompt --prompt "Root Password" --placeholder "Root Password" --validator '^.{8,}$' --confirm --password)
 	set_state_value "root_password_hash" "$(openssl passwd -6 "$root_password")"
 
 	local username
-	username=$(input_prompt "Username" "Username" 0 '^[a-z_][a-z0-9_-]*[$]?$')
+	username=$(input_prompt --prompt "Username" --placeholder "Username" --validator '^[a-z_][a-z0-9_-]*[$]?$')
 	set_state_value "username" "$username"
 
 	local password
-	password=$(input_prompt "User Password" "User Password" 1 '^.{8,}$' 1)
+	password=$(input_prompt --prompt "User Password" --placeholder "User Password" --validator '^.{8,}$' --confirm --password)
 	set_state_value "user_password_hash" "$(openssl passwd -6 "$password")"
 
 	local git_name
-	git_name=$(input_prompt "Git author name (optional)" "Git Name" 0)
+	git_name=$(input_prompt --prompt "Git author name (optional)" --placeholder "Git Name" --optional)
 	set_state_value "git.name" "$git_name"
 
 	local git_email
-	git_email=$(input_prompt "Git author email (optional)" "Git Email" 0 '^[^@]+@[^@]+\.[^@]+$')
+	git_email=$(input_prompt --prompt "Git author email (optional)" --placeholder "Git Email" --validator '^[^@]+@[^@]+\.[^@]+$' --optional)
 	set_state_value "git.email" "$git_email"
 
 	local config_repo
-	config_repo=$(input_prompt "Config Git repository URL (optional)" "Config Repo URL" 0)
+	config_repo=$(input_prompt --prompt "Config Git repository URL (optional)" --placeholder "Config Repo URL" --optional)
 	set_state_value "config_repo" "$config_repo"
 
 	local selected_disk

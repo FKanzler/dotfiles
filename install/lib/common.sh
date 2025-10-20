@@ -220,19 +220,75 @@ confirm_prompt() {
 
 # Show a gum input prompt and return the value.
 input_prompt() {
-	local prompt=$1
-	local placeholder=$2
-	local require_confirmation=${3:-0}
-	local validator=${4:-}
-	local password_mode=${5:-0}
+	local prompt=""
+	local placeholder=""
+	local validator=""
+	local confirm=0
+	local password=0
+	local optional=0
 	local value
 	local confirm_value
 	local -a gum_args
 	local -a confirm_args
 
+	# Backwards compatibility for the old positional signature.
+	if (($# > 0)) && [[ "$1" != --* ]]; then
+		prompt=$1
+		placeholder=${2:-""}
+		confirm=${3:-0}
+		validator=${4:-""}
+		password=${5:-0}
+	else
+		while (($# > 0)); do
+			case "$1" in
+			--prompt)
+				prompt=$2
+				shift 2
+				;;
+			--placeholder)
+				placeholder=$2
+				shift 2
+				;;
+			--validator)
+				validator=$2
+				shift 2
+				;;
+			--confirm)
+				confirm=1
+				shift
+				;;
+			--password)
+				password=1
+				shift
+				;;
+			--optional)
+				optional=1
+				shift
+				;;
+			--)
+				shift
+				break
+				;;
+			-*)
+				abort "Unknown option for input_prompt: $1"
+				;;
+			*)
+				abort "Unexpected argument for input_prompt: $1"
+				;;
+			esac
+		done
+	fi
+
+	if [[ -z "$prompt" ]]; then
+		abort "input_prompt requires --prompt"
+	fi
+	if [[ -z "$placeholder" ]]; then
+		placeholder="$prompt"
+	fi
+
 	while true; do
 		gum_args=(gum input --prompt "$prompt: " --placeholder "$placeholder")
-		if ((password_mode)); then
+		if ((password)); then
 			gum_args+=(--password)
 		fi
 		value=$("${gum_args[@]}")
@@ -250,20 +306,32 @@ input_prompt() {
 			;;
 		esac
 
-		if [[ -n "$validator" && -n "$value" && ! "$value" =~ $validator ]]; then
+		if [[ -z "$value" ]]; then
+			if ((optional)); then
+				printf '%s\n' "$value"
+				return 0
+			fi
+			log_warn "Input is required, please enter a value."
+			continue
+		fi
+
+		if [[ -n "$validator" && ! "$value" =~ $validator ]]; then
 			log_warn "Input does not match required format, please try again. (Expected format: $validator)"
 			continue
 		fi
 
-		if ((require_confirmation)); then
+		if ((confirm)); then
 			confirm_args=(gum input --prompt "Confirm $placeholder: " --placeholder "$placeholder")
-			if ((password_mode)); then
+			if ((password)); then
 				confirm_args+=(--password)
 			fi
 			confirm_value=$("${confirm_args[@]}")
 			status=$?
 			case $status in
 			0) ;;
+			1)
+				continue
+				;;
 			130)
 				abort "Installer cancelled by user."
 				;;
@@ -280,6 +348,77 @@ input_prompt() {
 		printf '%s\n' "$value"
 		return 0
 	done
+}
+
+# Show a gum selection prompt and return the chosen value.
+select_prompt() {
+	local header=""
+	local allow_empty=0
+	local -a options=()
+
+	while (($# > 0)); do
+		case "$1" in
+		--header)
+			header=$2
+			shift 2
+			;;
+		--option)
+			options+=("$2")
+			shift 2
+			;;
+		--optional)
+			allow_empty=1
+			shift
+			;;
+		--)
+			shift
+			break
+			;;
+		-*)
+			abort "Unknown option for select_prompt: $1"
+			;;
+		*)
+			options+=("$1")
+			shift
+			;;
+		esac
+	done
+
+	while (($# > 0)); do
+		options+=("$1")
+		shift
+	done
+
+	if ! command -v gum >/dev/null 2>&1; then
+		abort "gum is required for interactive prompts but is not available."
+	fi
+
+	if ((${#options[@]} == 0)); then
+		if ((allow_empty)); then
+			printf '\n'
+			return 0
+		fi
+		abort "No options provided for selection prompt."
+	fi
+
+	local selected
+	selected=$(printf '%s\n' "${options[@]}" | gum choose --header "$header")
+	local status=$?
+	case $status in
+	0)
+		printf '%s\n' "$selected"
+		;;
+	130)
+		abort "Installer cancelled by user."
+		;;
+	*)
+		if ((allow_empty)); then
+			printf '\n'
+			return 0
+		fi
+		abort "gum choose failed with exit code $status"
+		;;
+	esac
 }
 
 # Determine the repository root from the helper location.
