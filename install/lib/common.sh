@@ -227,9 +227,15 @@ input_prompt() {
 	local password_mode=${5:-0}
 	local value
 	local confirm_value
+	local -a gum_args
+	local -a confirm_args
 
 	while true; do
-		value=$(gum input --prompt "$prompt: " --placeholder "$placeholder" --password "$password_mode")
+		gum_args=(gum input --prompt "$prompt: " --placeholder "$placeholder")
+		if ((password_mode)); then
+			gum_args+=(--password)
+		fi
+		value=$("${gum_args[@]}")
 		local status=$?
 		case $status in
 		0) ;;
@@ -247,7 +253,11 @@ input_prompt() {
 		fi
 
 		if ((require_confirmation)); then
-			confirm_value=$(gum input --prompt "Confirm $placeholder: " --placeholder "$placeholder" --password "$password_mode")
+			confirm_args=(gum input --prompt "Confirm $placeholder: " --placeholder "$placeholder")
+			if ((password_mode)); then
+				confirm_args+=(--password)
+			fi
+			confirm_value=$("${confirm_args[@]}")
 			status=$?
 			case $status in
 			0) ;;
