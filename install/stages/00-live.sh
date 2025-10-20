@@ -93,7 +93,7 @@ select_disk() {
 	fi
 
 	local selected
-	selected=$(select_prompt --header "Select installation disk" -- "${options[@]}")
+	selected=$(select_prompt "Select installation disk" -- "${options[@]}")
 	echo "$selected" | awk '{print $1}'
 }
 
@@ -153,7 +153,7 @@ collect_values() {
 			continue
 		fi
 
-		if confirm_prompt "Erase" "Choose again" "Erase all data on $selected_disk and continue?"; then
+		if confirm_prompt "Erase all data on $selected_disk and continue?" --affirmative "Erase" --negative "Choose again"; then
 			break
 		fi
 	done
@@ -164,7 +164,7 @@ collect_values() {
 		encryption_key=$(generate_recovery_key)
 		gum style --foreground=212 "Save this disk encryption recovery key somewhere safe:"
 		gum style --foreground=10 --bold --border rounded --padding "1 2" "$encryption_key"
-		if confirm_prompt "Continue" "Generate new key" "Have you written down the recovery key?"; then
+		if confirm_prompt "Have you written down the recovery key?" --affirmative "Continue" --negative "Generate new key"; then
 			break
 		fi
 	done

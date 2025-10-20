@@ -23,7 +23,7 @@ confirm_continue_previous() {
 	gum style --bold --border double --padding "1 2" --margin "1 0" "ARCH INSTALLER"
 
 	if exists_previous_state; then
-		if gum_confirm_prompt "Continue" "Reset" "Previous installation state detected. Do you want to continue or reset the state and start fresh?"; then
+		if confirm_prompt "Previous installation state detected. Do you want to continue or reset the state and start fresh?" --affirmative "Continue" --negative "Reset"; then
 			return
 		fi
 

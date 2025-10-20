@@ -191,12 +191,16 @@ json_get() {
 }
 
 # Show a gum confirmation prompt and normalize exit handling.
-gum_confirm_prompt() {
+confirm_prompt() {
+	if (("$#" == 0)); then
+		abort "confirm_prompt requires a message"
+	fi
+
+	local message=$1
+	shift
 	local affirmative=""
 	local negative=""
-	local message=""
 	local default_choice=""
-	local positional_index=0
 	local -a gum_args=(gum confirm)
 
 	while (($# > 0)); do
@@ -209,12 +213,12 @@ gum_confirm_prompt() {
 			negative=$2
 			shift 2
 			;;
-		--message)
-			message=$2
-			shift 2
-			;;
 		--default)
 			default_choice=$2
+			shift 2
+			;;
+		--message)
+			message=$2
 			shift 2
 			;;
 		--)
@@ -222,31 +226,14 @@ gum_confirm_prompt() {
 			break
 			;;
 		-*)
-			abort "Unknown option for gum_confirm_prompt: $1"
+			abort "Unknown option for confirm_prompt: $1"
 			;;
 		*)
-			case $positional_index in
-			0)
-				affirmative=$1
-				;;
-			1)
-				negative=$1
-				;;
-			*)
-				if [[ -n "$message" ]]; then
-					message+=" $1"
-				else
-					message=$1
-				fi
-				;;
-			esac
-			positional_index=$((positional_index + 1))
-			shift
+			abort "Unexpected argument for confirm_prompt: $1"
 			;;
 		esac
 	done
 
-	# Remaining words after '--' are appended to the message.
 	while (($# > 0)); do
 		if [[ -n "$message" ]]; then
 			message+=" $1"
@@ -254,10 +241,10 @@ gum_confirm_prompt() {
 			message=$1
 		fi
 		shift
-	end
+	done
 
-	if ! command -v gum >/dev/null 2>&1; then
-		abort "gum is required for interactive prompts but is not available."
+	if [[ -z "$message" ]]; then
+		abort "confirm_prompt requires a message"
 	fi
 
 	if [[ -n "$affirmative" ]]; then
@@ -269,9 +256,8 @@ gum_confirm_prompt() {
 	if [[ -n "$default_choice" ]]; then
 		gum_args+=(--default "$default_choice")
 	fi
-	if [[ -n "$message" ]]; then
-		gum_args+=("$message")
-	fi
+
+	gum_args+=("$message")
 
 	"${gum_args[@]}"
 	local status=$?
@@ -289,11 +275,6 @@ gum_confirm_prompt() {
 		abort "gum confirm failed with exit code $status"
 		;;
 	esac
-}
-
-# Backwards-compatible alias for scripts using the older name.
-confirm_prompt() {
-	gum_confirm_prompt "$@"
 }
 
 # Show a gum input prompt and return the value.
@@ -453,6 +434,7 @@ input_prompt() {
 select_prompt() {
 	local header=""
 	local allow_empty=0
+	local positional_index=0
 	local -a options=()
 
 	while (($# > 0)); do
@@ -477,7 +459,12 @@ select_prompt() {
 			abort "Unknown option for select_prompt: $1"
 			;;
 		*)
-			options+=("$1")
+			if ((positional_index == 0)); then
+				header=$1
+			else
+				options+=("$1")
+			fi
+			positional_index=$((positional_index + 1))
 			shift
 			;;
 		esac
@@ -487,6 +474,10 @@ select_prompt() {
 		options+=("$1")
 		shift
 	done
+
+	if [[ -z "$header" ]]; then
+		abort "select_prompt requires a header"
+	fi
 
 	if ((${#options[@]} == 0)); then
 		if ((allow_empty)); then
@@ -503,6 +494,7 @@ select_prompt() {
 		case $status in
 		0)
 			printf '%s\n' "$selected"
+			return 0
 			;;
 		1)
 			if ((allow_empty)); then
