@@ -239,6 +239,9 @@ input_prompt() {
 		local status=$?
 		case $status in
 		0) ;;
+		1)
+			continue
+			;;
 		130)
 			abort "Installer cancelled by user."
 			;;
