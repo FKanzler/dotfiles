@@ -191,16 +191,89 @@ json_get() {
 }
 
 # Show a gum confirmation prompt and normalize exit handling.
-confirm_prompt() {
-	local affirmative=$1
-	local negative=$2
-	local message=$3
+gum_confirm_prompt() {
+	local affirmative=""
+	local negative=""
+	local message=""
+	local default_choice=""
+	local positional_index=0
+	local -a gum_args=(gum confirm)
+
+	while (($# > 0)); do
+		case "$1" in
+		--affirmative)
+			affirmative=$2
+			shift 2
+			;;
+		--negative)
+			negative=$2
+			shift 2
+			;;
+		--message)
+			message=$2
+			shift 2
+			;;
+		--default)
+			default_choice=$2
+			shift 2
+			;;
+		--)
+			shift
+			break
+			;;
+		-*)
+			abort "Unknown option for gum_confirm_prompt: $1"
+			;;
+		*)
+			case $positional_index in
+			0)
+				affirmative=$1
+				;;
+			1)
+				negative=$1
+				;;
+			*)
+				if [[ -n "$message" ]]; then
+					message+=" $1"
+				else
+					message=$1
+				fi
+				;;
+			esac
+			positional_index=$((positional_index + 1))
+			shift
+			;;
+		esac
+	done
+
+	# Remaining words after '--' are appended to the message.
+	while (($# > 0)); do
+		if [[ -n "$message" ]]; then
+			message+=" $1"
+		else
+			message=$1
+		fi
+		shift
+	end
 
 	if ! command -v gum >/dev/null 2>&1; then
 		abort "gum is required for interactive prompts but is not available."
 	fi
 
-	gum confirm --affirmative "$affirmative" --negative "$negative" "$message"
+	if [[ -n "$affirmative" ]]; then
+		gum_args+=(--affirmative "$affirmative")
+	fi
+	if [[ -n "$negative" ]]; then
+		gum_args+=(--negative "$negative")
+	fi
+	if [[ -n "$default_choice" ]]; then
+		gum_args+=(--default "$default_choice")
+	fi
+	if [[ -n "$message" ]]; then
+		gum_args+=("$message")
+	fi
+
+	"${gum_args[@]}"
 	local status=$?
 	case $status in
 	0)
@@ -218,6 +291,11 @@ confirm_prompt() {
 	esac
 }
 
+# Backwards-compatible alias for scripts using the older name.
+confirm_prompt() {
+	gum_confirm_prompt "$@"
+}
+
 # Show a gum input prompt and return the value.
 input_prompt() {
 	local prompt=""
@@ -226,64 +304,85 @@ input_prompt() {
 	local confirm=0
 	local password=0
 	local optional=0
+	local positional_index=0
 	local value
 	local confirm_value
 	local -a gum_args
 	local -a confirm_args
 
-	# Backwards compatibility for the old positional signature.
-	if (($# > 0)) && [[ "$1" != --* ]]; then
-		prompt=$1
-		placeholder=${2:-""}
-		confirm=${3:-0}
-		validator=${4:-""}
-		password=${5:-0}
-	else
-		while (($# > 0)); do
-			case "$1" in
-			--prompt)
-				prompt=$2
-				shift 2
+	while (($# > 0)); do
+		case "$1" in
+		--prompt)
+			prompt=$2
+			shift 2
+			;;
+		--placeholder)
+			placeholder=$2
+			shift 2
+			;;
+		--validator)
+			validator=$2
+			shift 2
+			;;
+		--confirm)
+			confirm=1
+			shift
+			;;
+		--password)
+			password=1
+			shift
+			;;
+		--optional)
+			optional=1
+			shift
+			;;
+		--)
+			shift
+			break
+			;;
+		-*)
+			abort "Unknown option for input_prompt: $1"
+			;;
+		*)
+			case $positional_index in
+			0)
+				prompt=$1
 				;;
-			--placeholder)
-				placeholder=$2
-				shift 2
+			1)
+				placeholder=$1
 				;;
-			--validator)
-				validator=$2
-				shift 2
+			2)
+				confirm=$1
 				;;
-			--confirm)
-				confirm=1
-				shift
+			3)
+				validator=$1
 				;;
-			--password)
-				password=1
-				shift
-				;;
-			--optional)
-				optional=1
-				shift
-				;;
-			--)
-				shift
-				break
-				;;
-			-*)
-				abort "Unknown option for input_prompt: $1"
+			4)
+				password=$1
 				;;
 			*)
 				abort "Unexpected argument for input_prompt: $1"
 				;;
 			esac
-		done
-	fi
+			positional_index=$((positional_index + 1))
+			shift
+			;;
+		esac
+	done
 
 	if [[ -z "$prompt" ]]; then
-		abort "input_prompt requires --prompt"
+		abort "input_prompt requires a prompt"
 	fi
 	if [[ -z "$placeholder" ]]; then
 		placeholder="$prompt"
+	fi
+
+	# Normalize legacy positional boolean values.
+	if [[ "$confirm" != 0 ]]; then
+		confirm=1
+	fi
+	if [[ "$password" != 0 ]]; then
+		password=1
 	fi
 
 	while true; do

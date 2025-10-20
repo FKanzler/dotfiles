@@ -117,20 +117,20 @@ collect_values() {
 	gum style --bold --border double --padding "1 2" --margin "1 0" "ARCH INSTALLER"
 
 	local hostname
-	hostname=$(input_prompt --prompt "Hostname" --placeholder "Hostname" --validator '^[A-Za-z_][A-Za-z0-9_-]*$')
+	hostname=$(input_prompt "Hostname" --validator '^[A-Za-z_][A-Za-z0-9_-]*$')
 	set_state_value "hostname" "$hostname"
 	set_state_value "target_root" "$TARGET_ROOT"
 
 	local root_password
-	root_password=$(input_prompt --prompt "Root Password" --placeholder "Root Password" --validator '^.{8,}$' --confirm --password)
+	root_password=$(input_prompt "Root Password" --validator '^.{8,}$' --confirm --password)
 	set_state_value "root_password_hash" "$(openssl passwd -6 "$root_password")"
 
 	local username
-	username=$(input_prompt --prompt "Username" --placeholder "Username" --validator '^[a-z_][a-z0-9_-]*[$]?$')
+	username=$(input_prompt "Username" --validator '^[a-z_][a-z0-9_-]*[$]?$')
 	set_state_value "username" "$username"
 
 	local password
-	password=$(input_prompt --prompt "User Password" --placeholder "User Password" --validator '^.{8,}$' --confirm --password)
+	password=$(input_prompt "User Password" --validator '^.{8,}$' --confirm --password)
 	set_state_value "user_password_hash" "$(openssl passwd -6 "$password")"
 
 	local git_name
